@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Análise de Inflação: Núcleos e Componentes Estruturais (IPCA)</title>
+<title>Análise de Inflação: Núcleos e Componentes Estruturais (IPCA-15)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -219,11 +219,10 @@
   <header class="header">
     <div>
       <div class="accent-bar"></div>
-      <h1>Análise de Inflação: Núcleos e Componentes Estruturais (IPCA)</h1>
-      <div class="subtitle" id="period-subtitle">Carregando período...</div>
+      <h1>Análise de Inflação: Núcleos e Componentes Estruturais (IPCA-15)</h1>
     </div>
     <div class="meta">
-      Série mensal — variação interanual (%)
+      MM3M dessaz anualizado (%)
       <strong id="last-update">—</strong>
     </div>
   </header>
@@ -314,8 +313,6 @@ const xDates = processed.map(r => r.date);
  * ============================================================ */
 const firstDate = xDates[0];
 const lastDate  = xDates[xDates.length - 1];
-document.getElementById('period-subtitle').textContent =
-  `Período analisado: ${formatMonthYearLong(firstDate)} a ${formatMonthYearLong(lastDate)}`;
 document.getElementById('last-update').textContent =
   `Última observação: ${formatMonthYearLong(lastDate)}`;
 
