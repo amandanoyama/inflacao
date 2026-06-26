@@ -365,13 +365,13 @@
     </div>
 
     <div class="ibge-table-wrap">
-      <h2>Contribuição dos grupos para o IPCA acumulado em 12 meses</h2>
-      <div class="chart-sub">Decomposição da variação em 12 meses (p.p.)</div>
-      <div id="ibge-chart" style="width:100%; height:420px;"></div>
+      <h2>Decomposição do IPCA-15 acumulado em 12 meses</h2>
+      <div class="chart-sub">Contribuição de cada grupo, em p.p., ao longo do tempo</div>
+      <div id="ibge-chart" style="width:100%; height:480px;"></div>
     </div>
 
     <footer class="footer">
-      Fonte: IBGE — SIDRA, Tabela 7062 (IPCA — variação, peso e variação acumulada por grupo). Contribuição = (Peso/100) × Variação.
+      Fonte: IBGE — SIDRA, Tabela 7063 (IPCA-15 — variação, peso e variação acumulada por grupo). Contribuição = (Peso/100) × Variação. A soma das contribuições dos grupos reproduz a variação acumulada em 12 meses do índice.
     </footer>
   </section>
 </div>
@@ -627,67 +627,143 @@ const IBGE_GROUPS = [
 ];
 const IBGE_GENERAL = { code: '7169', name: 'Índice geral' };
 
-// Dados mockados — usados se a chamada à API falhar (CORS, offline, etc.)
-// Valores representativos para demonstração. Substitua pela coleta real
-// quando os dados oficiais estiverem disponíveis.
-const IBGE_MOCK = {
-  refLabel: 'outubro de 2025',
-  rows: [
-    { code: '7170', varMes:  0.18, peso: 21.45, var12: 4.85 },
-    { code: '7445', varMes:  0.12, peso: 15.62, var12: 4.21 },
-    { code: '7486', varMes: -0.05, peso:  3.84, var12: 2.10 },
-    { code: '7558', varMes:  0.22, peso:  4.78, var12: 3.45 },
-    { code: '7625', varMes:  0.31, peso: 20.93, var12: 5.12 },
-    { code: '7660', varMes:  0.27, peso: 13.21, var12: 5.78 },
-    { code: '7712', varMes:  0.41, peso: 10.85, var12: 4.95 },
-    { code: '7766', varMes:  0.05, peso:  5.92, var12: 4.42 },
-    { code: '7786', varMes: -0.02, peso:  3.40, var12: 1.85 }
-  ],
-  generalVarMes: 0.21,
-  generalVar12: 4.62
-};
+// Dados mockados — fallback se a API do SIDRA bloquear (CORS, offline, etc.)
+// Histórico de 24 meses com pesos e variações 12m por grupo. Valores
+// representativos para demonstração visual.
+function buildMockHistory() {
+  const months = [];
+  // Gera 24 meses terminando no mês corrente
+  const today = new Date();
+  for (let i = 23; i >= 0; i--) {
+    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    months.push(d);
+  }
+  // Pesos médios típicos por grupo (somam ~100)
+  const pesos = [21.5, 15.6, 3.8, 4.8, 20.9, 13.2, 10.9, 5.9, 3.4];
+  // Curvas suaves de var. 12m por grupo (média + amplitude + fase)
+  const params = [
+    { m: 5.0, a: 1.5, p: 0.0 }, // alimentação
+    { m: 4.2, a: 0.8, p: 0.5 }, // habitação
+    { m: 2.5, a: 0.6, p: 1.0 }, // art. residência
+    { m: 3.5, a: 0.5, p: 1.5 }, // vestuário
+    { m: 4.5, a: 1.2, p: 2.0 }, // transportes
+    { m: 5.5, a: 0.7, p: 2.5 }, // saúde
+    { m: 5.0, a: 0.6, p: 3.0 }, // despesas pessoais
+    { m: 4.4, a: 0.4, p: 3.5 }, // educação
+    { m: 1.9, a: 0.3, p: 4.0 }  // comunicação
+  ];
+  const series = months.map((d, idx) => {
+    const t = idx / 6;
+    const groupRows = IBGE_GROUPS.map((g, i) => ({
+      code: g.code,
+      peso: pesos[i],
+      var12: +(params[i].m + params[i].a * Math.sin(t + params[i].p)).toFixed(2)
+    }));
+    // último mês: também var. mensal para a tabela
+    const varMes = IBGE_GROUPS.map((_, i) =>
+      +((params[i].m / 12) + 0.15 * Math.sin(t * 2 + params[i].p)).toFixed(2)
+    );
+    return { date: d, groups: groupRows, varMes };
+  });
+  return series;
+}
+
+function formatMonthYearShort(d) {
+  const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  return meses[d.getMonth()] + '/' + String(d.getFullYear()).slice(2);
+}
 
 async function loadIBGE() {
   const statusEl = document.getElementById('ibge-status');
   try {
     const data = await fetchSIDRA();
     renderIBGE(data, false);
-    statusEl.textContent = 'Fonte: SIDRA/IBGE, Tabela 7062 — ref.: ' + data.refLabel;
+    statusEl.textContent = 'Fonte: SIDRA/IBGE, Tabela 7063 (IPCA-15) — ' + data.series.length + ' meses · ref. atual: ' + data.refLabel;
   } catch (err) {
     console.warn('Falha ao consultar SIDRA, usando dados de demonstração.', err);
-    renderIBGE(IBGE_MOCK, true);
+    const mockSeries = buildMockHistory();
+    const last = mockSeries[mockSeries.length - 1];
+    const mockData = {
+      series: mockSeries,
+      refLabel: formatMonthYearShort(last.date),
+      tableRows: IBGE_GROUPS.map((g, i) => ({
+        code: g.code,
+        varMes: last.varMes[i],
+        peso:   last.groups[i].peso,
+        var12:  last.groups[i].var12
+      })),
+      generalVarMes: +last.varMes.reduce((acc, v, i) => acc + (last.groups[i].peso / 100) * v, 0).toFixed(2),
+      generalVar12:  +last.groups.reduce((acc, g) => acc + (g.peso / 100) * g.var12, 0).toFixed(2)
+    };
+    renderIBGE(mockData, true);
     statusEl.classList.add('error');
-    statusEl.textContent = 'Não foi possível consultar a API do SIDRA — exibindo dados de demonstração.';
+    statusEl.textContent = 'Não foi possível consultar a API do SIDRA — exibindo dados de demonstração (24 meses simulados).';
   }
 }
 
 async function fetchSIDRA() {
   const codes = [IBGE_GENERAL.code, ...IBGE_GROUPS.map(g => g.code)].join(',');
-  const url = 'https://apisidra.ibge.gov.br/values/t/7062/n1/all/v/63,66,69/p/last%201/c315/' + codes + '?formato=json';
+  // Tabela 7063 = IPCA-15. Variáveis: 355 (var. mensal), 357 (peso mensal),
+  // 363 (var. acumulada em 12 meses). Buscamos todos os períodos disponíveis.
+  const url = 'https://apisidra.ibge.gov.br/values/t/7063/n1/all/v/355,357,363/p/all/c315/' + codes + '?formato=json';
   const resp = await fetch(url);
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
   const raw = await resp.json();
-  // raw[0] é cabeçalho; demais são valores
-  const records = raw.slice(1);
-  const byGroupVar = {};
-  let refLabel = '';
+  const records = raw.slice(1); // raw[0] é cabeçalho
+
+  // Indexa por período → grupo → variável
+  const byPeriod = {};
   records.forEach(r => {
+    const period = r.D3C; // formato AAAAMM
     const varCode = r.D2C;
     const groupCode = r.D4C;
-    const value = parseFloat(String(r.V).replace(',', '.'));
-    refLabel = r.D3N || refLabel;
-    if (!byGroupVar[groupCode]) byGroupVar[groupCode] = {};
-    if (varCode === '63') byGroupVar[groupCode].varMes = value;
-    if (varCode === '66') byGroupVar[groupCode].peso = value;
-    if (varCode === '69') byGroupVar[groupCode].var12 = value;
+    const raw = String(r.V);
+    const value = (raw === '-' || raw === '...' || raw === '') ? null : parseFloat(raw.replace(',', '.'));
+    if (!byPeriod[period]) byPeriod[period] = { label: r.D3N, groups: {} };
+    if (!byPeriod[period].groups[groupCode]) byPeriod[period].groups[groupCode] = {};
+    if (varCode === '355') byPeriod[period].groups[groupCode].varMes = value;
+    if (varCode === '357') byPeriod[period].groups[groupCode].peso   = value;
+    if (varCode === '363') byPeriod[period].groups[groupCode].var12  = value;
   });
-  const rows = IBGE_GROUPS.map(g => Object.assign({ code: g.code }, byGroupVar[g.code] || {}));
-  const gen = byGroupVar[IBGE_GENERAL.code] || {};
+
+  const periods = Object.keys(byPeriod).sort(); // AAAAMM ordena lexicograficamente
+  // Filtra para só meses em que já há var. 12m (ou seja, descarta primeiros 12 meses)
+  const validPeriods = periods.filter(p => {
+    return IBGE_GROUPS.every(g => {
+      const v = byPeriod[p].groups[g.code];
+      return v && v.var12 != null && v.peso != null;
+    });
+  });
+
+  const series = validPeriods.map(p => {
+    const yyyy = parseInt(p.slice(0, 4), 10);
+    const mm = parseInt(p.slice(4, 6), 10) - 1;
+    return {
+      date: new Date(yyyy, mm, 1),
+      groups: IBGE_GROUPS.map(g => ({
+        code: g.code,
+        peso:  byPeriod[p].groups[g.code].peso,
+        var12: byPeriod[p].groups[g.code].var12
+      }))
+    };
+  });
+
+  const lastPeriod = periods[periods.length - 1];
+  const refLabel = byPeriod[lastPeriod] ? byPeriod[lastPeriod].label : '';
+  const lastGroups = byPeriod[lastPeriod].groups;
+  const tableRows = IBGE_GROUPS.map(g => ({
+    code:   g.code,
+    varMes: lastGroups[g.code] ? lastGroups[g.code].varMes : null,
+    peso:   lastGroups[g.code] ? lastGroups[g.code].peso   : null,
+    var12:  lastGroups[g.code] ? lastGroups[g.code].var12  : null
+  }));
+  const gen = lastGroups[IBGE_GENERAL.code] || {};
   return {
+    series: series,
     refLabel: refLabel,
-    rows: rows,
+    tableRows: tableRows,
     generalVarMes: gen.varMes,
-    generalVar12: gen.var12
+    generalVar12:  gen.var12
   };
 }
 
@@ -701,70 +777,105 @@ function signClass(n) {
 }
 
 function renderIBGE(data, isMock) {
-  // Tabela
+  // --- Tabela (mês mais recente) ---
   const tbody = document.getElementById('ibge-table-body');
   tbody.innerHTML = '';
   let sumContrib = 0;
   IBGE_GROUPS.forEach((g, i) => {
-    const r = data.rows[i] || {};
+    const r = data.tableRows[i] || {};
     const contrib = (r.peso != null && r.varMes != null) ? (r.peso / 100) * r.varMes : null;
     if (contrib != null) sumContrib += contrib;
     const tr = document.createElement('tr');
     tr.innerHTML =
       '<td><span class="group-dot" style="background:' + g.color + '"></span>' + g.name + '</td>' +
-      '<td class="' + signClass(r.varMes) + '">' + fmt(r.varMes, 2) + '</td>' +
+      '<td>' + fmt(r.varMes, 2) + '</td>' +
       '<td>' + fmt(r.peso, 2) + '</td>' +
-      '<td class="' + signClass(contrib) + '">' + fmt(contrib, 3) + '</td>';
+      '<td>' + fmt(contrib, 3) + '</td>';
     tbody.appendChild(tr);
   });
   const trGen = document.createElement('tr');
   trGen.className = 'row-general';
   trGen.innerHTML =
     '<td>' + IBGE_GENERAL.name + '</td>' +
-    '<td class="' + signClass(data.generalVarMes) + '">' + fmt(data.generalVarMes, 2) + '</td>' +
+    '<td>' + fmt(data.generalVarMes, 2) + '</td>' +
     '<td>100,00</td>' +
-    '<td class="' + signClass(sumContrib) + '">' + fmt(sumContrib, 3) + '</td>';
+    '<td>' + fmt(sumContrib, 3) + '</td>';
   tbody.appendChild(trGen);
 
   document.getElementById('ibge-table-ref').textContent =
     'Referência: ' + (data.refLabel || '—') + (isMock ? ' · dados de demonstração' : '');
 
-  // Gráfico: barras empilhadas com contribuição de cada grupo para o IPCA 12m
-  // Contribuição 12m ≈ (peso atual / 100) × variação acumulada 12m
-  const traces = IBGE_GROUPS.map((g, i) => {
-    const r = data.rows[i] || {};
-    const contrib12 = (r.peso != null && r.var12 != null) ? (r.peso / 100) * r.var12 : 0;
+  // --- Gráfico: série temporal empilhada com contribuição 12m por grupo ---
+  // Para cada mês t: contrib(g,t) = peso(g,t)/100 × var12m(g,t)
+  // A soma vertical reconstrói a variação acumulada em 12m do índice.
+  const series = data.series;
+  const xDates = series.map(s => s.date);
+
+  const traces = IBGE_GROUPS.map((g, gi) => {
+    const yVals = series.map(s => {
+      const item = s.groups[gi];
+      if (!item || item.peso == null || item.var12 == null) return null;
+      return (item.peso / 100) * item.var12;
+    });
     return {
       type: 'bar',
-      x: ['IPCA 12 meses'],
-      y: [contrib12],
+      x: xDates,
+      y: yVals,
       name: g.name,
-      marker: { color: g.color },
-      hovertemplate: '<b>' + g.name + '</b><br>Contribuição: %{y:.3f} p.p.<extra></extra>'
+      marker: { color: g.color, line: { width: 0 } },
+      hovertemplate: '<b>' + g.name + '</b><br>%{x|%b/%Y}<br>Contribuição: %{y:.2f} p.p.<extra></extra>'
     };
   });
 
+  // Linha do índice total = soma das contribuições
+  const totals = series.map(s => {
+    return s.groups.reduce((acc, item) => {
+      if (!item || item.peso == null || item.var12 == null) return acc;
+      return acc + (item.peso / 100) * item.var12;
+    }, 0);
+  });
+  traces.push({
+    type: 'scatter',
+    mode: 'lines+markers',
+    x: xDates,
+    y: totals,
+    name: 'IPCA-15 acumulado 12m',
+    line: { color: '#212529', width: 2 },
+    marker: { size: 5, color: '#212529' },
+    hovertemplate: '<b>IPCA-15 (12m)</b><br>%{x|%b/%Y}<br><b>%{y:.2f}%</b><extra></extra>'
+  });
+
   const layout = {
-    barmode: 'stack',
-    margin: { l: 60, r: 24, t: 12, b: 48 },
+    barmode: 'relative',
+    margin: { l: 60, r: 24, t: 12, b: 80 },
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
     font: { family: "'Inter', sans-serif", size: 12, color: '#5c6770' },
+    bargap: 0.15,
     yaxis: {
-      title: { text: 'Contribuição (p.p.)', font: { size: 11 } },
+      title: { text: 'IPCA-15 acum. 12m e contribuições (p.p.)', font: { size: 11 } },
       gridcolor: '#e5e8ec',
-      zerolinecolor: '#d8dde3',
-      tickformat: '.2f'
+      zerolinecolor: '#8a929b',
+      zerolinewidth: 1,
+      tickformat: '.1f'
     },
-    xaxis: { tickfont: { size: 12, color: '#212529' } },
+    xaxis: {
+      type: 'date',
+      tickformat: '%b/%y',
+      tickfont: { size: 11, color: '#5c6770' },
+      gridcolor: 'transparent',
+      showline: true,
+      linecolor: '#d8dde3'
+    },
     legend: {
       orientation: 'h',
-      y: -0.18,
+      y: -0.22,
       x: 0.5,
       xanchor: 'center',
-      font: { size: 11 }
+      font: { size: 11 },
+      traceorder: 'normal'
     },
-    hovermode: 'x'
+    hovermode: 'x unified'
   };
 
   Plotly.newPlot('ibge-chart', traces, layout, {
