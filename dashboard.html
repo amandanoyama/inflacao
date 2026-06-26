@@ -185,6 +185,109 @@
     height: 280px;
   }
 
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+    margin: 16px 0 24px;
+  }
+  .tab-button {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 10px 18px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+    margin-bottom: -1px;
+  }
+  .tab-button:hover { color: var(--text-primary); }
+  .tab-button.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  .tab-panel { display: none; animation: fadeIn 0.25s ease; }
+  .tab-panel.active { display: block; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Tabela IBGE */
+  .ibge-table-wrap {
+    background: var(--bg-card);
+    border: 1px solid var(--border-soft);
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 24px;
+    overflow-x: auto;
+  }
+  .ibge-table-wrap h2 {
+    margin: 0 0 4px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.02em;
+  }
+  .ibge-table-wrap .chart-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 14px;
+  }
+  table.ibge-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  table.ibge-table th,
+  table.ibge-table td {
+    padding: 9px 12px;
+    text-align: right;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  table.ibge-table th:first-child,
+  table.ibge-table td:first-child { text-align: left; }
+  table.ibge-table thead th {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+  }
+  table.ibge-table tbody tr.row-general {
+    font-weight: 600;
+    background: rgba(27, 58, 92, 0.04);
+  }
+  table.ibge-table tbody tr.row-general td { border-bottom: 1px solid var(--border); }
+  table.ibge-table .group-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  table.ibge-table .pos { color: #8B2C2C; }
+  table.ibge-table .neg { color: #2C5F2D; }
+
+  .ibge-status {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 12px;
+  }
+  .ibge-status.error { color: #8B2C2C; }
+
   /* Footer */
   .footer {
     margin-top: 28px;
@@ -219,20 +322,58 @@
   <header class="header">
     <div>
       <div class="accent-bar"></div>
-      <h1>Análise de Inflação: Núcleos e Componentes Estruturais (IPCA-15)</h1>
+      <h1>Análise de Inflação: Núcleos e Componentes Estruturais</h1>
     </div>
     <div class="meta">
-      MM3M dessaz anualizado (%)
+      Última observação:
       <strong id="last-update">—</strong>
     </div>
   </header>
 
-  <!-- Grid de gráficos -->
-  <section class="chart-grid" id="chart-grid"></section>
+  <!-- Abas -->
+  <nav class="tabs" role="tablist">
+    <button class="tab-button active" data-tab="bacen" role="tab">Grupos BACEN</button>
+    <button class="tab-button" data-tab="ibge" role="tab">Grupos IBGE</button>
+  </nav>
 
-  <footer class="footer">
-    Fonte: base de dados ipca15 dessaz (planilha do repositório). Série dessazonalizada — variações em pontos percentuais.
-  </footer>
+  <!-- Aba BACEN -->
+  <section class="tab-panel active" id="tab-bacen" role="tabpanel">
+    <section class="chart-grid" id="chart-grid"></section>
+    <footer class="footer">
+      Fonte: base de dados ipca15 dessaz (planilha do repositório). Série dessazonalizada — MM3M anualizado (%).
+    </footer>
+  </section>
+
+  <!-- Aba IBGE -->
+  <section class="tab-panel" id="tab-ibge" role="tabpanel">
+    <p class="ibge-status" id="ibge-status">Carregando dados do SIDRA/IBGE…</p>
+
+    <div class="ibge-table-wrap">
+      <h2>IPCA — Variação, peso e contribuição mensal por grupo</h2>
+      <div class="chart-sub" id="ibge-table-ref">Referência: —</div>
+      <table class="ibge-table">
+        <thead>
+          <tr>
+            <th>Grupo</th>
+            <th>Variação mensal (%)</th>
+            <th>Peso mensal (%)</th>
+            <th>Contribuição (p.p.)</th>
+          </tr>
+        </thead>
+        <tbody id="ibge-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="ibge-table-wrap">
+      <h2>Contribuição dos grupos para o IPCA acumulado em 12 meses</h2>
+      <div class="chart-sub">Decomposição da variação em 12 meses (p.p.)</div>
+      <div id="ibge-chart" style="width:100%; height:420px;"></div>
+    </div>
+
+    <footer class="footer">
+      Fonte: IBGE — SIDRA, Tabela 7062 (IPCA — variação, peso e variação acumulada por grupo). Contribuição = (Peso/100) × Variação.
+    </footer>
+  </section>
 </div>
 
 <script>
@@ -440,6 +581,195 @@ SERIES.forEach((serie, idx) => {
 if (document.fonts && document.fonts.ready) {
   document.fonts.ready.then(() => {
     SERIES.forEach(s => Plotly.Plots.resize(document.getElementById('plot-' + s.id)));
+  });
+}
+
+/* ============================================================
+ * ABAS — alternância entre Grupos BACEN e Grupos IBGE
+ * ============================================================ */
+const tabButtons = document.querySelectorAll('.tab-button');
+const tabPanels  = document.querySelectorAll('.tab-panel');
+let ibgeLoaded = false;
+
+tabButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const target = btn.dataset.tab;
+    tabButtons.forEach(b => b.classList.toggle('active', b === btn));
+    tabPanels.forEach(p => p.classList.toggle('active', p.id === 'tab-' + target));
+    if (target === 'ibge' && !ibgeLoaded) {
+      ibgeLoaded = true;
+      loadIBGE();
+    } else if (target === 'bacen') {
+      SERIES.forEach(s => Plotly.Plots.resize(document.getElementById('plot-' + s.id)));
+    } else if (target === 'ibge' && ibgeLoaded) {
+      const c = document.getElementById('ibge-chart');
+      if (c && c.data) Plotly.Plots.resize(c);
+    }
+  });
+});
+
+/* ============================================================
+ * Aba IBGE — Tabela 7062 do SIDRA
+ *  V63: Variação mensal (%)
+ *  V66: Peso mensal (%)
+ *  V69: Variação acumulada em 12 meses (%)
+ * ============================================================ */
+const IBGE_GROUPS = [
+  { code: '7170', name: '1. Alimentação e bebidas',     color: '#6B7A3F' },
+  { code: '7445', name: '2. Habitação',                 color: '#1B3A5C' },
+  { code: '7486', name: '3. Artigos de residência',     color: '#9CA3AF' },
+  { code: '7558', name: '4. Vestuário',                 color: '#A0522D' },
+  { code: '7625', name: '5. Transportes',               color: '#475569' },
+  { code: '7660', name: '6. Saúde e cuidados pessoais', color: '#7C3F58' },
+  { code: '7712', name: '7. Despesas pessoais',         color: '#374151' },
+  { code: '7766', name: '8. Educação',                  color: '#2C5F2D' },
+  { code: '7786', name: '9. Comunicação',               color: '#8B5A3C' }
+];
+const IBGE_GENERAL = { code: '7169', name: 'Índice geral' };
+
+// Dados mockados — usados se a chamada à API falhar (CORS, offline, etc.)
+// Valores representativos para demonstração. Substitua pela coleta real
+// quando os dados oficiais estiverem disponíveis.
+const IBGE_MOCK = {
+  refLabel: 'outubro de 2025',
+  rows: [
+    { code: '7170', varMes:  0.18, peso: 21.45, var12: 4.85 },
+    { code: '7445', varMes:  0.12, peso: 15.62, var12: 4.21 },
+    { code: '7486', varMes: -0.05, peso:  3.84, var12: 2.10 },
+    { code: '7558', varMes:  0.22, peso:  4.78, var12: 3.45 },
+    { code: '7625', varMes:  0.31, peso: 20.93, var12: 5.12 },
+    { code: '7660', varMes:  0.27, peso: 13.21, var12: 5.78 },
+    { code: '7712', varMes:  0.41, peso: 10.85, var12: 4.95 },
+    { code: '7766', varMes:  0.05, peso:  5.92, var12: 4.42 },
+    { code: '7786', varMes: -0.02, peso:  3.40, var12: 1.85 }
+  ],
+  generalVarMes: 0.21,
+  generalVar12: 4.62
+};
+
+async function loadIBGE() {
+  const statusEl = document.getElementById('ibge-status');
+  try {
+    const data = await fetchSIDRA();
+    renderIBGE(data, false);
+    statusEl.textContent = 'Fonte: SIDRA/IBGE, Tabela 7062 — ref.: ' + data.refLabel;
+  } catch (err) {
+    console.warn('Falha ao consultar SIDRA, usando dados de demonstração.', err);
+    renderIBGE(IBGE_MOCK, true);
+    statusEl.classList.add('error');
+    statusEl.textContent = 'Não foi possível consultar a API do SIDRA — exibindo dados de demonstração.';
+  }
+}
+
+async function fetchSIDRA() {
+  const codes = [IBGE_GENERAL.code, ...IBGE_GROUPS.map(g => g.code)].join(',');
+  const url = 'https://apisidra.ibge.gov.br/values/t/7062/n1/all/v/63,66,69/p/last%201/c315/' + codes + '?formato=json';
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const raw = await resp.json();
+  // raw[0] é cabeçalho; demais são valores
+  const records = raw.slice(1);
+  const byGroupVar = {};
+  let refLabel = '';
+  records.forEach(r => {
+    const varCode = r.D2C;
+    const groupCode = r.D4C;
+    const value = parseFloat(String(r.V).replace(',', '.'));
+    refLabel = r.D3N || refLabel;
+    if (!byGroupVar[groupCode]) byGroupVar[groupCode] = {};
+    if (varCode === '63') byGroupVar[groupCode].varMes = value;
+    if (varCode === '66') byGroupVar[groupCode].peso = value;
+    if (varCode === '69') byGroupVar[groupCode].var12 = value;
+  });
+  const rows = IBGE_GROUPS.map(g => Object.assign({ code: g.code }, byGroupVar[g.code] || {}));
+  const gen = byGroupVar[IBGE_GENERAL.code] || {};
+  return {
+    refLabel: refLabel,
+    rows: rows,
+    generalVarMes: gen.varMes,
+    generalVar12: gen.var12
+  };
+}
+
+function fmt(n, dig) {
+  if (n === null || n === undefined || Number.isNaN(n)) return '—';
+  return n.toFixed(dig).replace('.', ',');
+}
+function signClass(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return '';
+  return n >= 0 ? 'pos' : 'neg';
+}
+
+function renderIBGE(data, isMock) {
+  // Tabela
+  const tbody = document.getElementById('ibge-table-body');
+  tbody.innerHTML = '';
+  let sumContrib = 0;
+  IBGE_GROUPS.forEach((g, i) => {
+    const r = data.rows[i] || {};
+    const contrib = (r.peso != null && r.varMes != null) ? (r.peso / 100) * r.varMes : null;
+    if (contrib != null) sumContrib += contrib;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><span class="group-dot" style="background:' + g.color + '"></span>' + g.name + '</td>' +
+      '<td class="' + signClass(r.varMes) + '">' + fmt(r.varMes, 2) + '</td>' +
+      '<td>' + fmt(r.peso, 2) + '</td>' +
+      '<td class="' + signClass(contrib) + '">' + fmt(contrib, 3) + '</td>';
+    tbody.appendChild(tr);
+  });
+  const trGen = document.createElement('tr');
+  trGen.className = 'row-general';
+  trGen.innerHTML =
+    '<td>' + IBGE_GENERAL.name + '</td>' +
+    '<td class="' + signClass(data.generalVarMes) + '">' + fmt(data.generalVarMes, 2) + '</td>' +
+    '<td>100,00</td>' +
+    '<td class="' + signClass(sumContrib) + '">' + fmt(sumContrib, 3) + '</td>';
+  tbody.appendChild(trGen);
+
+  document.getElementById('ibge-table-ref').textContent =
+    'Referência: ' + (data.refLabel || '—') + (isMock ? ' · dados de demonstração' : '');
+
+  // Gráfico: barras empilhadas com contribuição de cada grupo para o IPCA 12m
+  // Contribuição 12m ≈ (peso atual / 100) × variação acumulada 12m
+  const traces = IBGE_GROUPS.map((g, i) => {
+    const r = data.rows[i] || {};
+    const contrib12 = (r.peso != null && r.var12 != null) ? (r.peso / 100) * r.var12 : 0;
+    return {
+      type: 'bar',
+      x: ['IPCA 12 meses'],
+      y: [contrib12],
+      name: g.name,
+      marker: { color: g.color },
+      hovertemplate: '<b>' + g.name + '</b><br>Contribuição: %{y:.3f} p.p.<extra></extra>'
+    };
+  });
+
+  const layout = {
+    barmode: 'stack',
+    margin: { l: 60, r: 24, t: 12, b: 48 },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { family: "'Inter', sans-serif", size: 12, color: '#5c6770' },
+    yaxis: {
+      title: { text: 'Contribuição (p.p.)', font: { size: 11 } },
+      gridcolor: '#e5e8ec',
+      zerolinecolor: '#d8dde3',
+      tickformat: '.2f'
+    },
+    xaxis: { tickfont: { size: 12, color: '#212529' } },
+    legend: {
+      orientation: 'h',
+      y: -0.18,
+      x: 0.5,
+      xanchor: 'center',
+      font: { size: 11 }
+    },
+    hovermode: 'x'
+  };
+
+  Plotly.newPlot('ibge-chart', traces, layout, {
+    displayModeBar: false,
+    responsive: true
   });
 }
 </script>
