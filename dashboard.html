@@ -227,9 +227,6 @@
     </div>
   </header>
 
-  <!-- Cards de destaque (KPIs) -->
-  <section class="kpi-grid" id="kpi-grid"></section>
-
   <!-- Grid de gráficos -->
   <section class="chart-grid" id="chart-grid"></section>
 
@@ -317,34 +314,6 @@ document.getElementById('last-update').textContent =
   `Última observação: ${formatMonthYearLong(lastDate)}`;
 
 /* ============================================================
- * Constrói KPIs com o último valor disponível de cada série
- * (procura retroativamente caso o último ponto venha nulo).
- * ============================================================ */
-function lastAvailable(key) {
-  for (let i = processed.length - 1; i >= 0; i--) {
-    const v = processed[i][key];
-    if (v !== null && v !== undefined && !Number.isNaN(v)) {
-      return { value: v, date: processed[i].date };
-    }
-  }
-  return { value: null, date: null };
-}
-
-const kpiGrid = document.getElementById('kpi-grid');
-SERIES.forEach(s => {
-  const { value, date } = lastAvailable(s.key);
-  const card = document.createElement('div');
-  card.className = 'kpi-card';
-  card.style.setProperty('--kpi-color', s.plotColor);
-  card.innerHTML = `
-    <div class="label">${s.title}</div>
-    <div class="value">${value === null ? '—' : value.toFixed(2).replace('.', ',')}<span class="unit">%</span></div>
-    <div class="ref">Ref.: ${date ? formatMonthYear(date) : '—'}</div>
-  `;
-  kpiGrid.appendChild(card);
-});
-
-/* ============================================================
  * Renderização dos gráficos (Plotly)
  *  - hovermode 'x unified' fornece o crosshair vertical sincronizado
  *  - connectgaps:false respeita lacunas reais nos dados
@@ -424,14 +393,10 @@ SERIES.forEach((serie, idx) => {
   // Card visual
   const card = document.createElement('div');
   card.className = 'chart-card';
-  // Última (5ª) ocupa a linha inteira em telas grandes para melhor leitura
-  if (idx === SERIES.length - 1 && SERIES.length % 2 === 1) {
-    card.classList.add('full-width');
-  }
   card.innerHTML = `
     <div class="chart-header">
       <h2>${serie.title}</h2>
-      <div class="chart-sub">Var. interanual</div>
+      <div class="chart-sub">MM3M dessaz anualizado (%)</div>
     </div>
     <div class="plot" id="plot-${serie.id}"></div>
   `;
