@@ -1092,11 +1092,11 @@ function buildMockPNAD(kind) {
     const t = i / 12; // anos desde início
     let v;
     if (kind === 'desoc') {
-      // Sobe ~7→14 até 2021 e cai depois
+      // Trajetória estilizada (mock identificável — termina em ~4,0%
+      // para NÃO ser confundido com o valor real de ~5,6%).
       v = 7 + 7 * Math.sin(Math.min(t, 9) / 9 * Math.PI) - 0.4 * Math.max(0, t - 9);
-      v = Math.max(5.5, v);
+      v = Math.max(3.0, v);
     } else {
-      // Rendimento real em torno de 2400–3100
       v = 2600 + 200 * Math.sin(t / 2) + 30 * t;
     }
     points.push({ date: d, value: +v.toFixed(2) });
