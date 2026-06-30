@@ -743,8 +743,10 @@ function initInflacaoTab() {
   loadIBGE();
 }
 
-// Aba inicial — dispara imediatamente
-activateTab('inflacao');
+// Aba inicial — dispara após todas as constantes serem inicializadas
+// (evita ReferenceError de temporal dead zone com IBGE_GROUPS/IBGE_GENERAL
+// declaradas mais adiante neste mesmo script).
+window.addEventListener('DOMContentLoaded', () => activateTab('inflacao'));
 
 /* ============================================================
  * Aba IBGE — Tabela 7062 do SIDRA
@@ -1043,7 +1045,7 @@ async function loadTrabalho() {
   try {
     const [desoc, renda] = await Promise.all([
       fetchSIDRASeries(6381, 4099),
-      fetchSIDRASeries(6387, 5933)
+      fetchSIDRASeries(6387, 5935)
     ]);
     renderTrabalho(desoc, renda);
     statusEl.textContent = 'Fonte: PNAD Contínua / SIDRA — Tabelas 6381 e 6387 · ref. atual: ' + desoc.refLabel;
