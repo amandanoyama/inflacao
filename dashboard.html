@@ -419,8 +419,8 @@
 
     <footer class="footer">
       Fonte: IBGE — PNAD Contínua, via SIDRA. Taxa de desocupação: Tabela 6381 (var. 4099).
-      Rendimento médio real efetivamente recebido: Tabela 6388 (var. 5933). Período: trimestre móvel
-      identificado pelo último mês do trimestre.
+      Rendimento médio mensal real efetivamente recebido em todos os trabalhos: Tabela 6387 (var. 5933).
+      Período: trimestre móvel identificado pelo último mês do trimestre.
     </footer>
   </section>
 
@@ -1021,7 +1021,7 @@ function renderIBGE(data, isMock) {
 /* ============================================================
  * Aba MERCADO DE TRABALHO — PNAD Contínua via SIDRA
  *   Tabela 6381, var. 4099 = Taxa de desocupação (%) — 14 anos ou mais
- *   Tabela 6388, var. 5933 = Rendimento médio real efetivamente recebido (R$)
+ *   Tabela 6387, var. 5933 = Rendimento médio mensal real efetivamente recebido em todos os trabalhos (R$)
  *   Período: trimestre móvel, identificado pelo último mês.
  * ============================================================ */
 const TRABALHO_COLORS = {
@@ -1043,10 +1043,10 @@ async function loadTrabalho() {
   try {
     const [desoc, renda] = await Promise.all([
       fetchSIDRASeries(6381, 4099),
-      fetchSIDRASeries(6388, 5933)
+      fetchSIDRASeries(6387, 5933)
     ]);
     renderTrabalho(desoc, renda);
-    statusEl.textContent = 'Fonte: PNAD Contínua / SIDRA — Tabelas 6381 e 6388 · ref. atual: ' + desoc.refLabel;
+    statusEl.textContent = 'Fonte: PNAD Contínua / SIDRA — Tabelas 6381 e 6387 · ref. atual: ' + desoc.refLabel;
   } catch (err) {
     console.warn('Falha ao consultar PNAD/SIDRA — usando dados de demonstração.', err);
     renderTrabalho(buildMockPNAD('desoc'), buildMockPNAD('renda'));
