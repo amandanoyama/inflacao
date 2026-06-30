@@ -226,7 +226,11 @@
     border-radius: 6px;
     padding: 20px;
     margin-bottom: 24px;
+  }
+  .ibge-table-scroll {
     overflow-x: auto;
+    max-height: 420px;
+    overflow-y: auto;
   }
   .ibge-table-wrap h2 {
     margin: 0 0 4px;
@@ -330,48 +334,56 @@
     </div>
   </header>
 
-  <!-- Abas -->
+  <!-- ============================================================
+       ABAS TEMÁTICAS
+       Estrutura preparada para crescer com novos blocos macroeconômicos.
+       Para adicionar uma nova aba (ex.: PIB, Emprego, Setor Externo):
+         1) acrescente um <button class="tab-button" data-tab="XXX">...</button>;
+         2) crie a <section class="tab-panel" id="tab-XXX">...</section>;
+         3) (opcional) registre um inicializador em TAB_INITIALIZERS no script.
+       ============================================================ -->
   <nav class="tabs" role="tablist">
-    <button class="tab-button active" data-tab="ibge" role="tab">Grupos IBGE</button>
-    <button class="tab-button" data-tab="bacen" role="tab">Grupos BACEN</button>
+    <button class="tab-button active" data-tab="inflacao" role="tab">Inflação (IPCA-15)</button>
+    <!-- Futuras abas:
+    <button class="tab-button" data-tab="pib" role="tab">Atividade (PIB)</button>
+    <button class="tab-button" data-tab="emprego" role="tab">Emprego</button>
+    <button class="tab-button" data-tab="externo" role="tab">Setor externo</button>
+    -->
   </nav>
 
-  <!-- Aba BACEN -->
-  <section class="tab-panel" id="tab-bacen" role="tabpanel">
-    <section class="chart-grid" id="chart-grid"></section>
-    <footer class="footer">
-      Fonte: base de dados ipca15 dessaz (planilha do repositório). Série dessazonalizada — MM3M anualizado (%).
-    </footer>
-  </section>
-
-  <!-- Aba IBGE -->
-  <section class="tab-panel active" id="tab-ibge" role="tabpanel">
+  <!-- Aba: Inflação (IPCA-15) -->
+  <section class="tab-panel active" id="tab-inflacao" role="tabpanel">
     <p class="ibge-status" id="ibge-status">Carregando dados do SIDRA/IBGE…</p>
 
+    <!-- Topo: Tabela de dados do IPCA-15 -->
     <div class="ibge-table-wrap">
       <h2>IPCA-15 — Variação, peso e contribuição mensal por grupo</h2>
       <div class="chart-sub" id="ibge-table-ref">Referência: —</div>
-      <table class="ibge-table">
-        <thead>
-          <tr>
-            <th>Grupo</th>
-            <th>Variação mensal (%)</th>
-            <th>Peso mensal (%)</th>
-            <th>Contribuição (p.p.)</th>
-          </tr>
-        </thead>
-        <tbody id="ibge-table-body"></tbody>
-      </table>
+      <div class="ibge-table-scroll">
+        <table class="ibge-table">
+          <thead>
+            <tr>
+              <th>Grupo</th>
+              <th>Variação mensal (%)</th>
+              <th>Peso mensal (%)</th>
+              <th>Contribuição (p.p.)</th>
+            </tr>
+          </thead>
+          <tbody id="ibge-table-body"></tbody>
+        </table>
+      </div>
     </div>
 
-    <div class="ibge-table-wrap">
-      <h2>IPCA-15 — Variação acumulada em 12 meses</h2>
-      <div class="chart-sub">Índice geral e grupos (%)</div>
-      <div id="ibge-chart" style="width:100%; height:480px;"></div>
-    </div>
+    <!-- Base: Grid uniforme de gráficos
+         Populado dinamicamente pelo script (5 séries BACEN + 1 série IBGE 12m).
+         Todos os cards compartilham a mesma classe .chart-card e .plot
+         para garantir dimensões idênticas em cada linha do grid. -->
+    <section class="chart-grid" id="chart-grid"></section>
 
     <footer class="footer">
-      Fonte: IBGE — SIDRA, Tabela 7062 (IPCA-15 — variação mensal, peso mensal e variação acumulada em 12 meses por grupo). Contribuição mensal = (Peso/100) × Variação mensal.
+      Fontes: (i) base ipca15 dessaz — núcleos e componentes estruturais em MM3M anualizado;
+      (ii) IBGE — SIDRA, Tabela 7062 (IPCA-15 — variação mensal, peso mensal e variação acumulada em 12 meses por grupo).
+      Contribuição mensal = (Peso/100) × Variação mensal.
     </footer>
   </section>
 </div>
@@ -585,34 +597,71 @@ if (document.fonts && document.fonts.ready) {
 }
 
 /* ============================================================
- * ABAS — alternância entre Grupos BACEN e Grupos IBGE
+ * ABAS — sistema genérico, pronto para receber novos blocos
+ * macroeconômicos (PIB, Emprego, Setor Externo, etc.).
+ *
+ * Como adicionar uma nova aba:
+ *  1. <button class="tab-button" data-tab="XXX">…</button>
+ *  2. <section class="tab-panel" id="tab-XXX">…</section>
+ *  3. (opcional) Registre em TAB_INITIALIZERS um callback executado
+ *     na primeira ativação da aba (carregar dados, montar gráficos).
+ *  4. (opcional) Registre em TAB_RESIZERS um callback executado a
+ *     cada reativação da aba, para Plotly.Plots.resize().
  * ============================================================ */
-const tabButtons = document.querySelectorAll('.tab-button');
-const tabPanels  = document.querySelectorAll('.tab-panel');
-let ibgeLoaded = false;
+const TAB_INITIALIZERS = {
+  inflacao: () => initInflacaoTab()
+};
+const TAB_RESIZERS = {
+  inflacao: () => resizeInflacaoCharts()
+};
+const tabState = { initialized: new Set() };
 
-tabButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    const target = btn.dataset.tab;
-    tabButtons.forEach(b => b.classList.toggle('active', b === btn));
-    tabPanels.forEach(p => p.classList.toggle('active', p.id === 'tab-' + target));
-    if (target === 'ibge' && !ibgeLoaded) {
-      ibgeLoaded = true;
-      loadIBGE();
-    } else if (target === 'bacen') {
-      SERIES.forEach(s => Plotly.Plots.resize(document.getElementById('plot-' + s.id)));
-    } else if (target === 'ibge' && ibgeLoaded) {
-      const c = document.getElementById('ibge-chart');
-      if (c && c.data) Plotly.Plots.resize(c);
-    }
-  });
+function activateTab(target) {
+  document.querySelectorAll('.tab-button').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === target));
+  document.querySelectorAll('.tab-panel').forEach(p =>
+    p.classList.toggle('active', p.id === 'tab-' + target));
+  if (!tabState.initialized.has(target) && TAB_INITIALIZERS[target]) {
+    tabState.initialized.add(target);
+    TAB_INITIALIZERS[target]();
+  } else if (TAB_RESIZERS[target]) {
+    TAB_RESIZERS[target]();
+  }
+}
+
+document.querySelectorAll('.tab-button').forEach(btn => {
+  btn.addEventListener('click', () => activateTab(btn.dataset.tab));
 });
 
-// IBGE é a aba inicial — carrega imediatamente
-if (!ibgeLoaded) {
-  ibgeLoaded = true;
+function resizeInflacaoCharts() {
+  SERIES.forEach(s => {
+    const el = document.getElementById('plot-' + s.id);
+    if (el) Plotly.Plots.resize(el);
+  });
+  const ibge = document.getElementById('ibge-chart');
+  if (ibge && ibge.data) Plotly.Plots.resize(ibge);
+}
+
+/* Inicialização da aba Inflação — adiciona o card do gráfico IBGE
+   ao mesmo grid uniforme dos gráficos BACEN e dispara o fetch. */
+function initInflacaoTab() {
+  const grid = document.getElementById('chart-grid');
+  if (!document.getElementById('ibge-chart')) {
+    const card = document.createElement('div');
+    card.className = 'chart-card';
+    card.innerHTML =
+      '<div class="chart-header">' +
+        '<h2>IPCA-15 — Acumulado em 12 meses</h2>' +
+        '<div class="chart-sub">Índice geral e grupos (%)</div>' +
+      '</div>' +
+      '<div class="plot" id="ibge-chart"></div>';
+    grid.appendChild(card);
+  }
   loadIBGE();
 }
+
+// Aba inicial — dispara imediatamente
+activateTab('inflacao');
 
 /* ============================================================
  * Aba IBGE — Tabela 7062 do SIDRA
@@ -823,8 +872,10 @@ function renderIBGE(data, isMock) {
   const series = data.series;
   const xDates = series.map(s => s.date);
 
-  // Linhas por grupo
+  // Linhas por grupo — nome curto na legenda (cabe em card compacto),
+  // nome completo no hover.
   const traces = IBGE_GROUPS.map((g, gi) => {
+    const shortName = g.name.replace(/^\d+\.\s*/, '');
     const yVals = series.map(s => {
       const item = s.groups[gi];
       return (item && item.var12 != null) ? item.var12 : null;
@@ -834,8 +885,8 @@ function renderIBGE(data, isMock) {
       mode: 'lines',
       x: xDates,
       y: yVals,
-      name: g.name,
-      line: { color: g.color, width: 2, shape: 'spline', smoothing: 0.4 },
+      name: shortName,
+      line: { color: g.color, width: 1.6, shape: 'spline', smoothing: 0.4 },
       connectgaps: false,
       hovertemplate: '<b>' + g.name + '</b><br>%{x|%b/%Y}: <b>%{y:.2f}%</b><extra></extra>'
     };
@@ -848,41 +899,47 @@ function renderIBGE(data, isMock) {
     mode: 'lines',
     x: xDates,
     y: generalY,
-    name: 'IPCA-15 — Índice geral',
-    line: { color: '#212529', width: 3 },
+    name: 'Índice geral',
+    line: { color: '#212529', width: 2.5 },
     connectgaps: false,
     hovertemplate: '<b>IPCA-15 (12m)</b><br>%{x|%b/%Y}: <b>%{y:.2f}%</b><extra></extra>'
   });
 
+  // Layout pensado para o card de altura 280px do grid uniforme:
+  // - legenda horizontal compacta, com nomes curtos por grupo,
+  // - margens enxutas para evitar sobreposição de eixos.
   const layout = {
-    margin: { l: 60, r: 24, t: 12, b: 90 },
+    margin: { l: 48, r: 16, t: 8, b: 64 },
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
-    font: { family: "'Inter', sans-serif", size: 12, color: '#5c6770' },
+    font: { family: "'Inter', sans-serif", size: 11, color: '#5c6770' },
     yaxis: {
-      title: { text: 'Variação acumulada em 12 meses (%)', font: { size: 11 } },
       gridcolor: '#e5e8ec',
       zerolinecolor: '#8a929b',
       zerolinewidth: 1,
-      tickformat: '.1f'
+      tickformat: '.1f',
+      tickfont: { size: 10 },
+      ticksuffix: '%'
     },
     xaxis: {
       type: 'date',
       tickformat: '%b/%y',
-      tickfont: { size: 11, color: '#5c6770' },
+      tickfont: { size: 10, color: '#5c6770' },
+      nticks: 6,
       gridcolor: 'transparent',
       showline: true,
       linecolor: '#d8dde3'
     },
     legend: {
       orientation: 'h',
-      y: -0.22,
+      y: -0.32,
       x: 0.5,
       xanchor: 'center',
-      font: { size: 11 },
+      font: { size: 9 },
       traceorder: 'normal'
     },
-    hovermode: 'x unified'
+    hovermode: 'x unified',
+    showlegend: true
   };
 
   Plotly.newPlot('ibge-chart', traces, layout, {
