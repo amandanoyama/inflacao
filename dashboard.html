@@ -426,7 +426,7 @@
 
   <!-- Aba: Fiscal -->
   <section class="tab-panel" id="tab-fiscal" role="tabpanel">
-    <p class="ibge-status" id="fiscal-status">Carregando dados do SGS/BCB…</p>
+    <p class="ibge-status" id="fiscal-status" style="display:none;"></p>
 
     <section class="chart-grid">
       <div class="chart-card full-width">
@@ -1025,8 +1025,8 @@ function renderIBGE(data, isMock) {
  *   Período: trimestre móvel, identificado pelo último mês.
  * ============================================================ */
 const TRABALHO_COLORS = {
-  desoc: '#DE7B6E',   // coral — pressão/dificuldade
-  renda: '#6FA8DC'    // steel blue — fluxo financeiro
+  desoc: '#6FA8DC',   // steel blue — taxa de desocupação
+  renda: '#7FB089'    // verde sálvia — rendimento
 };
 
 function initTrabalhoTab() { loadTrabalho(); }
