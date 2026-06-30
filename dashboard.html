@@ -10,21 +10,26 @@
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 <style>
   :root {
-    --bg-page: #eef0f3;
-    --bg-card: #f8f9fa;
-    --bg-card-soft: #ffffff;
-    --border: #d8dde3;
-    --border-soft: #e5e8ec;
-    --text-primary: #212529;
-    --text-secondary: #5c6770;
+    /* Tema escuro fosco — pensado para longas sessões de leitura.
+       Cinzas neutros, evitando o preto puro e qualquer matiz frio
+       excessivo. Tipografia em branco/cinza claro para alto contraste. */
+    --bg-page: #1a1d23;
+    --bg-card: #232730;
+    --bg-card-soft: #2a2e38;
+    --border: #383d4a;
+    --border-soft: #2e323d;
+    --text-primary: #e8eaed;
+    --text-secondary: #b6bac4;
     --text-muted: #8a929b;
-    --accent: #1B3A5C;
+    --accent: #6FA8DC;
 
-    --c-nucleos: #1B3A5C;
-    --c-ex3: #475569;
-    --c-alim: #6B7A3F;
-    --c-ind: #A0522D;
-    --c-adm: #374151;
+    /* Paleta de dados — moderna, técnica, sem neon. Adequada
+       para visualizações lidas por executivos. */
+    --c-nucleos: #6FA8DC;  /* steel blue */
+    --c-ex3:     #9B8AC4;  /* lavender */
+    --c-alim:    #D9A656;  /* amber */
+    --c-ind:     #DE7B6E;  /* coral */
+    --c-adm:     #7E8AA0;  /* slate */
   }
 
   * { box-sizing: border-box; }
@@ -272,7 +277,7 @@
   }
   table.ibge-table tbody tr.row-general {
     font-weight: 600;
-    background: rgba(27, 58, 92, 0.04);
+    background: rgba(111, 168, 220, 0.07);
   }
   table.ibge-table tbody tr.row-general td { border-bottom: 1px solid var(--border); }
   table.ibge-table .group-dot {
@@ -283,8 +288,8 @@
     margin-right: 8px;
     vertical-align: middle;
   }
-  table.ibge-table .pos { color: #8B2C2C; }
-  table.ibge-table .neg { color: #2C5F2D; }
+  table.ibge-table .pos { color: #DE7B6E; }
+  table.ibge-table .neg { color: #9AAE65; }
 
   .ibge-status {
     font-size: 11px;
@@ -293,7 +298,7 @@
     letter-spacing: 0.06em;
     margin: 0 0 12px;
   }
-  .ibge-status.error { color: #8B2C2C; }
+  .ibge-status.error { color: #DE7B6E; }
 
   /* Footer */
   .footer {
@@ -329,11 +334,11 @@
   <header class="header">
     <div>
       <div class="accent-bar"></div>
-      <h1>Análise de Inflação: Núcleos e Componentes Estruturais</h1>
+      <h1>Análise Macroeconômica: Brasil</h1>
     </div>
     <div class="meta">
-      Última observação:
-      <strong id="last-update">—</strong>
+      Autora
+      <strong>Amanda Noyama de Lara</strong>
     </div>
   </header>
 
@@ -457,12 +462,70 @@ const RAW_DATA = /*__DATA__*/[{"G":null,"A":35125,"H":-0.92222369250282554,"C":n
  * Configuração das séries (ordem dos gráficos / KPIs).
  * ============================================================ */
 const SERIES = [
-  { id: 'nucleos', key: 'C', title: 'Média dos 5 núcleos',          color: 'var(--c-nucleos)', plotColor: '#1B3A5C' },
-  { id: 'ex3',     key: 'D', title: 'EX3 Serviços',                 color: 'var(--c-ex3)',     plotColor: '#475569' },
-  { id: 'alim',    key: 'H', title: 'Alimentação no domicílio',     color: 'var(--c-alim)',    plotColor: '#6B7A3F' },
-  { id: 'ind',     key: 'G', title: 'Produtos industriais',         color: 'var(--c-ind)',     plotColor: '#A0522D' },
-  { id: 'adm',     key: 'E', title: 'Preços Administrados',         color: 'var(--c-adm)',     plotColor: '#374151' }
+  { id: 'nucleos', key: 'C', title: 'Média dos 5 núcleos',          color: 'var(--c-nucleos)', plotColor: '#6FA8DC' },
+  { id: 'ex3',     key: 'D', title: 'EX3 Serviços',                 color: 'var(--c-ex3)',     plotColor: '#9B8AC4' },
+  { id: 'alim',    key: 'H', title: 'Alimentação no domicílio',     color: 'var(--c-alim)',    plotColor: '#D9A656' },
+  { id: 'ind',     key: 'G', title: 'Produtos industriais',         color: 'var(--c-ind)',     plotColor: '#DE7B6E' },
+  { id: 'adm',     key: 'E', title: 'Preços Administrados',         color: 'var(--c-adm)',     plotColor: '#7E8AA0' }
 ];
+
+/* ============================================================
+ * TEMA DE GRÁFICOS — paleta e helpers compartilhados.
+ * Centraliza fontes, cores de grid, crosshair e hover label
+ * para garantir consistência visual em TODAS as abas.
+ * ============================================================ */
+const CHART_THEME = {
+  font:      { family: "'Inter', 'Segoe UI', sans-serif", size: 11, color: '#b6bac4' },
+  tickFont:  { size: 10, color: '#8a929b' },
+  grid:      '#2f333d',
+  zeroLine:  '#4a4f5c',
+  axisLine:  '#4a4f5c',
+  spike:     '#b6bac4',
+  hoverlabel: {
+    bgcolor: '#11141a',
+    bordercolor: '#383d4a',
+    font: { family: "'Inter', sans-serif", size: 12, color: '#e8eaed' },
+    align: 'left'
+  }
+};
+
+// Eixo X temporal padrão — escala em ANOS + crosshair pontilhado vertical
+function commonXAxis() {
+  return {
+    type: 'date',
+    showgrid: false,
+    tickfont: CHART_THEME.tickFont,
+    tickformat: '%Y',
+    dtick: 'M12',
+    ticks: 'outside',
+    tickcolor: CHART_THEME.axisLine,
+    ticklen: 4,
+    linecolor: CHART_THEME.axisLine,
+    showspikes: true,
+    spikemode: 'across',
+    spikesnap: 'cursor',
+    spikethickness: 1,
+    spikedash: 'dot',
+    spikecolor: CHART_THEME.spike
+  };
+}
+
+// Eixo Y temático com defaults consistentes
+function commonYAxis(extras) {
+  return Object.assign({
+    showgrid: true,
+    gridcolor: CHART_THEME.grid,
+    gridwidth: 1,
+    zeroline: true,
+    zerolinecolor: CHART_THEME.zeroLine,
+    zerolinewidth: 1,
+    tickfont: CHART_THEME.tickFont
+  }, extras || {});
+}
+
+// Paleta padrão para séries adicionais (índice geral, etc.)
+const PALETTE_BASE = ['#6FA8DC', '#9B8AC4', '#D9A656', '#DE7B6E', '#7E8AA0',
+                      '#4FB39F', '#C97898', '#9AAE65', '#B86A9C'];
 
 /* ============================================================
  * Helpers
@@ -511,14 +574,6 @@ const processed = RAW_DATA
 const xDates = processed.map(r => r.date);
 
 /* ============================================================
- * Atualiza cabeçalho com o período disponível
- * ============================================================ */
-const firstDate = xDates[0];
-const lastDate  = xDates[xDates.length - 1];
-document.getElementById('last-update').textContent =
-  `Última observação: ${formatMonthYearLong(lastDate)}`;
-
-/* ============================================================
  * Renderização dos gráficos (Plotly)
  *  - hovermode 'x unified' fornece o crosshair vertical sincronizado
  *  - connectgaps:false respeita lacunas reais nos dados
@@ -546,46 +601,18 @@ function baseLayout(serie) {
     margin: { t: 16, r: 18, b: 36, l: 48 },
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
-    font: {
-      family: "'Inter', 'Segoe UI', sans-serif",
-      size: 11,
-      color: '#5c6770'
-    },
+    font: CHART_THEME.font,
     hovermode: 'x unified',
-    hoverlabel: {
-      bgcolor: '#212529',
-      bordercolor: '#212529',
-      font: {
-        family: "'Inter', sans-serif",
-        size: 12,
-        color: '#f8f9fa'
-      },
-      align: 'left'
-    },
-    xaxis: {
-      type: 'date',
-      showgrid: false,
-      tickfont: { size: 10, color: '#8a929b' },
-      tickformat: "%Y",
-      ticks: 'outside',
-      tickcolor: '#d8dde3',
-      ticklen: 4,
-      linecolor: '#d8dde3',
-      showspikes: true,
-      spikemode: 'across',
-      spikesnap: 'cursor',
-      spikethickness: 1,
-      spikedash: 'dot',
-      spikecolor: '#8a929b'
-    },
+    hoverlabel: CHART_THEME.hoverlabel,
+    xaxis: commonXAxis(),
     yaxis: {
       showgrid: true,
-      gridcolor: '#e5e8ec',
+      gridcolor: CHART_THEME.grid,
       gridwidth: 1,
       zeroline: true,
-      zerolinecolor: '#c0c6cd',
+      zerolinecolor: CHART_THEME.zeroLine,
       zerolinewidth: 1,
-      tickfont: { size: 10, color: '#8a929b' },
+      tickfont: CHART_THEME.tickFont,
       ticksuffix: '%',
       tickformat: ',.1f',
       separatethousands: true
@@ -726,15 +753,15 @@ activateTab('inflacao');
  *  V69: Variação acumulada em 12 meses (%)
  * ============================================================ */
 const IBGE_GROUPS = [
-  { code: '7170', name: '1. Alimentação e bebidas',     color: '#E58A6E' },
-  { code: '7445', name: '2. Habitação',                 color: '#6BA8C9' },
-  { code: '7486', name: '3. Artigos de residência',     color: '#B79CC8' },
-  { code: '7558', name: '4. Vestuário',                 color: '#E6B454' },
-  { code: '7625', name: '5. Transportes',               color: '#7AB5A8' },
-  { code: '7660', name: '6. Saúde e cuidados pessoais', color: '#D7889F' },
-  { code: '7712', name: '7. Despesas pessoais',         color: '#8C7BB8' },
-  { code: '7766', name: '8. Educação',                  color: '#99B86F' },
-  { code: '7786', name: '9. Comunicação',               color: '#5A8FA8' }
+  { code: '7170', name: '1. Alimentação e bebidas',     color: '#DE7B6E' },
+  { code: '7445', name: '2. Habitação',                 color: '#6FA8DC' },
+  { code: '7486', name: '3. Artigos de residência',     color: '#9B8AC4' },
+  { code: '7558', name: '4. Vestuário',                 color: '#D9A656' },
+  { code: '7625', name: '5. Transportes',               color: '#4FB39F' },
+  { code: '7660', name: '6. Saúde e cuidados pessoais', color: '#C97898' },
+  { code: '7712', name: '7. Despesas pessoais',         color: '#B86A9C' },
+  { code: '7766', name: '8. Educação',                  color: '#9AAE65' },
+  { code: '7786', name: '9. Comunicação',               color: '#7E8AA0' }
 ];
 const IBGE_GENERAL = { code: '7169', name: 'Índice geral' };
 
@@ -956,42 +983,29 @@ function renderIBGE(data, isMock) {
     x: xDates,
     y: generalY,
     name: 'Índice geral',
-    line: { color: '#212529', width: 2.5 },
+    line: { color: '#e8eaed', width: 2.5 },
     connectgaps: false,
     hovertemplate: '<b>IPCA-15 (12m)</b><br>%{x|%b/%Y}: <b>%{y:.2f}%</b><extra></extra>'
   });
 
   // Layout pensado para o card de altura 280px do grid uniforme:
   // - legenda horizontal compacta, com nomes curtos por grupo,
-  // - margens enxutas para evitar sobreposição de eixos.
+  // - margens enxutas para evitar sobreposição de eixos,
+  // - eixo X em anos e crosshair pontilhado (tema compartilhado).
   const layout = {
-    margin: { l: 48, r: 16, t: 8, b: 64 },
+    margin: { l: 48, r: 16, t: 8, b: 72 },
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
-    font: { family: "'Inter', sans-serif", size: 11, color: '#5c6770' },
-    yaxis: {
-      gridcolor: '#e5e8ec',
-      zerolinecolor: '#8a929b',
-      zerolinewidth: 1,
-      tickformat: '.1f',
-      tickfont: { size: 10 },
-      ticksuffix: '%'
-    },
-    xaxis: {
-      type: 'date',
-      tickformat: '%b/%y',
-      tickfont: { size: 10, color: '#5c6770' },
-      nticks: 6,
-      gridcolor: 'transparent',
-      showline: true,
-      linecolor: '#d8dde3'
-    },
+    font: CHART_THEME.font,
+    hoverlabel: CHART_THEME.hoverlabel,
+    yaxis: commonYAxis({ tickformat: '.1f', ticksuffix: '%' }),
+    xaxis: commonXAxis(),
     legend: {
       orientation: 'h',
-      y: -0.32,
+      y: -0.36,
       x: 0.5,
       xanchor: 'center',
-      font: { size: 9 },
+      font: { size: 9, color: CHART_THEME.font.color },
       traceorder: 'normal'
     },
     hovermode: 'x unified',
@@ -1011,8 +1025,8 @@ function renderIBGE(data, isMock) {
  *   Período: trimestre móvel, identificado pelo último mês.
  * ============================================================ */
 const TRABALHO_COLORS = {
-  desoc: '#C9656B',   // vermelho suave
-  renda: '#3F7D9C'    // azul-petróleo
+  desoc: '#DE7B6E',   // coral — pressão/dificuldade
+  renda: '#6FA8DC'    // steel blue — fluxo financeiro
 };
 
 function initTrabalhoTab() { loadTrabalho(); }
@@ -1095,17 +1109,10 @@ function renderTrabalho(desoc, renda) {
     margin: { l: 56, r: 16, t: 8, b: 44 },
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
-    font: { family: "'Inter', sans-serif", size: 11, color: '#5c6770' },
-    xaxis: {
-      type: 'date',
-      tickformat: '%b/%y',
-      tickfont: { size: 10, color: '#5c6770' },
-      nticks: 8,
-      gridcolor: 'transparent',
-      showline: true,
-      linecolor: '#d8dde3'
-    },
-    hovermode: 'x'
+    font: CHART_THEME.font,
+    hoverlabel: CHART_THEME.hoverlabel,
+    xaxis: commonXAxis(),
+    hovermode: 'x unified'
   }, extra || {});
 
   // Gráfico 1 — Taxa de desocupação
@@ -1118,13 +1125,7 @@ function renderTrabalho(desoc, renda) {
     line: { color: TRABALHO_COLORS.desoc, width: 2, shape: 'spline', smoothing: 0.4 },
     hovertemplate: '<b>%{x|%b/%Y}</b><br>Desocupação: <b>%{y:.1f}%</b><extra></extra>'
   }], baseLayout({
-    yaxis: {
-      gridcolor: '#e5e8ec',
-      zerolinecolor: '#8a929b',
-      tickformat: '.1f',
-      ticksuffix: '%',
-      tickfont: { size: 10 }
-    }
+    yaxis: commonYAxis({ tickformat: '.1f', ticksuffix: '%' })
   }), { displayModeBar: false, responsive: true });
 
   // Gráfico 2 — Rendimento médio real (R$)
@@ -1137,14 +1138,11 @@ function renderTrabalho(desoc, renda) {
     line: { color: TRABALHO_COLORS.renda, width: 2, shape: 'spline', smoothing: 0.4 },
     hovertemplate: '<b>%{x|%b/%Y}</b><br>Rendimento: <b>R$ %{y:,.2f}</b><extra></extra>'
   }], baseLayout({
-    yaxis: {
-      gridcolor: '#e5e8ec',
-      zerolinecolor: '#8a929b',
+    yaxis: commonYAxis({
       tickprefix: 'R$ ',
       tickformat: ',.0f',
-      separatethousands: true,
-      tickfont: { size: 10 }
-    }
+      separatethousands: true
+    })
   }), { displayModeBar: false, responsive: true, locale: 'pt-BR' });
 }
 
@@ -1155,8 +1153,8 @@ function renderTrabalho(desoc, renda) {
  *   Período: jan/2010 → último ponto disponível.
  * ============================================================ */
 const FISCAL_SERIES = [
-  { code: 4513,  name: 'Dívida Líquida do Setor Público', color: '#3F7D9C' },
-  { code: 13762, name: 'Dívida Bruta do Governo Geral',   color: '#C9656B' }
+  { code: 4513,  name: 'Dívida Líquida do Setor Público', color: '#6FA8DC' },
+  { code: 13762, name: 'Dívida Bruta do Governo Geral',   color: '#DE7B6E' }
 ];
 
 function initFiscalTab() { loadFiscal(); }
@@ -1245,30 +1243,20 @@ function renderFiscal(seriesData) {
     margin: { l: 56, r: 16, t: 8, b: 70 },
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
-    font: { family: "'Inter', sans-serif", size: 11, color: '#5c6770' },
-    yaxis: {
-      title: { text: '% do PIB', font: { size: 11 } },
-      gridcolor: '#e5e8ec',
-      zerolinecolor: '#8a929b',
+    font: CHART_THEME.font,
+    hoverlabel: CHART_THEME.hoverlabel,
+    yaxis: commonYAxis({
+      title: { text: '% do PIB', font: { size: 11, color: CHART_THEME.font.color } },
       tickformat: '.1f',
-      ticksuffix: '%',
-      tickfont: { size: 10 }
-    },
-    xaxis: {
-      type: 'date',
-      tickformat: '%b/%y',
-      tickfont: { size: 10, color: '#5c6770' },
-      nticks: 10,
-      gridcolor: 'transparent',
-      showline: true,
-      linecolor: '#d8dde3'
-    },
+      ticksuffix: '%'
+    }),
+    xaxis: commonXAxis(),
     legend: {
       orientation: 'h',
       y: -0.18,
       x: 0.5,
       xanchor: 'center',
-      font: { size: 11 }
+      font: { size: 11, color: CHART_THEME.font.color }
     },
     hovermode: 'x unified'
   };
