@@ -1056,12 +1056,26 @@ async function loadTrabalho() {
 }
 
 // Genérico para qualquer série mensal/trimestral simples do SIDRA.
+// Estratégia: tenta direto; se falhar (CORS, rede), tenta via proxy CORS
+// público; só então desiste e o chamador cai no mock de demonstração.
 async function fetchSIDRASeries(tableId, varCode) {
-  const url = 'https://apisidra.ibge.gov.br/values/t/' + tableId +
-              '/n1/all/v/' + varCode + '/p/all?formato=json';
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error('HTTP ' + resp.status);
-  const raw = await resp.json();
+  const path = 'apisidra.ibge.gov.br/values/t/' + tableId +
+               '/n1/all/v/' + varCode + '/p/all?formato=json';
+  const directURL = 'https://' + path;
+  const proxyURL  = 'https://corsproxy.io/?' + encodeURIComponent(directURL);
+
+  let raw;
+  try {
+    const resp = await fetch(directURL);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    raw = await resp.json();
+  } catch (errDirect) {
+    console.warn('SIDRA direto falhou (' + tableId + '), tentando via proxy CORS:', errDirect);
+    const resp = await fetch(proxyURL);
+    if (!resp.ok) throw new Error('Proxy HTTP ' + resp.status);
+    raw = await resp.json();
+  }
+
   const records = raw.slice(1);
   const points = [];
   let refLabel = '';
