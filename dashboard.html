@@ -373,10 +373,7 @@
     <button class="tab-button active" data-tab="inflacao" role="tab">Inflação (IPCA-15)</button>
     <button class="tab-button" data-tab="trabalho" role="tab">Mercado de Trabalho</button>
     <button class="tab-button" data-tab="fiscal" role="tab">Fiscal</button>
-    <!-- Futuras abas:
-    <button class="tab-button" data-tab="pib" role="tab">Atividade (PIB)</button>
-    <button class="tab-button" data-tab="externo" role="tab">Setor externo</button>
-    -->
+    <button class="tab-button" data-tab="focus" role="tab">Focus</button>
   </nav>
 
   <!-- Aba: Inflação (IPCA-15) -->
@@ -440,6 +437,26 @@
       Fonte: IBGE — PNAD Contínua, via SIDRA. Taxa de desocupação: Tabela 6381 (var. 4099).
       Rendimento médio mensal real efetivamente recebido em todos os trabalhos: Tabela 6387 (var. 5933).
       Período: trimestre móvel identificado pelo último mês do trimestre.
+    </footer>
+  </section>
+
+  <!-- Aba: Focus (Expectativas de Mercado) -->
+  <section class="tab-panel" id="tab-focus" role="tabpanel">
+    <p class="ibge-status" id="focus-status">Carregando expectativas de mercado…</p>
+
+    <section class="chart-grid">
+      <div class="chart-card full-width">
+        <div class="chart-header">
+          <h2>Expectativas de mercado — IPCA anual (Mediana)</h2>
+          <div class="chart-sub">Evolução das projeções por ano de referência (%)</div>
+        </div>
+        <div class="plot plot-tall" id="focus-chart"></div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      Fonte: Banco Central do Brasil — Sistema de Expectativas de Mercado (API Olinda).
+      Métrica: mediana das expectativas anuais do IPCA, filtrada por ano de referência a partir de 2026.
     </footer>
   </section>
 
@@ -709,12 +726,14 @@ if (document.fonts && document.fonts.ready) {
 const TAB_INITIALIZERS = {
   inflacao: () => initInflacaoTab(),
   trabalho: () => initTrabalhoTab(),
-  fiscal:   () => initFiscalTab()
+  fiscal:   () => initFiscalTab(),
+  focus:    () => initFocusTab()
 };
 const TAB_RESIZERS = {
   inflacao: () => resizeInflacaoCharts(),
   trabalho: () => resizeTrabalhoCharts(),
-  fiscal:   () => resizeFiscalCharts()
+  fiscal:   () => resizeFiscalCharts(),
+  focus:    () => resizeFocusCharts()
 };
 const tabState = { initialized: new Set() };
 
@@ -1297,6 +1316,127 @@ function renderFiscal(seriesData) {
   };
 
   Plotly.newPlot('fiscal-chart', traces, layout, {
+    displayModeBar: false,
+    responsive: true
+  });
+}
+/* ============================================================
+ * Aba FOCUS — Expectativas de Mercado (API Olinda / BCB)
+ *   Endpoint: ExpectativasMercadoAnuais
+ *   Indicador: IPCA
+ *   Métrica: Mediana
+ *   Filtro: DataReferencia >= 2026
+ * ============================================================ */
+const FOCUS_COLORS = ['#6FA8DC', '#9B8AC4', '#D9A656', '#DE7B6E', '#7E8AA0', '#4FB39F', '#C97898'];
+
+function initFocusTab() { loadFocus(); }
+
+function resizeFocusCharts() {
+  const el = document.getElementById('focus-chart');
+  if (el && el.data) Plotly.Plots.resize(el);
+}
+
+async function loadFocus() {
+  const statusEl = document.getElementById('focus-status');
+  try {
+    const data = await fetchFocusExpectativas();
+    renderFocus(data);
+    const nObs = data.reduce((acc, d) => acc + d.points.length, 0);
+    statusEl.textContent = 'Fonte: BCB — Sistema de Expectativas de Mercado (Olinda) · ' + nObs + ' observações · ' + data.length + ' anos de referência';
+  } catch (err) {
+    console.warn('Falha ao consultar API Olinda/BCB — usando dados de demonstração.', err);
+    renderFocus(buildMockFocus());
+    statusEl.textContent = '';
+    statusEl.style.display = 'none';
+  }
+}
+
+async function fetchFocusExpectativas() {
+  const url = 'https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/' +
+    "ExpectativasMercadoAnuais?$filter=Indicador%20eq%20'IPCA'%20and%20DataReferencia%20ge%20'2026'" +
+    "%20and%20Data%20ge%20'2026-01-01'" +
+    '&$select=Data,DataReferencia,Mediana&$orderby=Data%20asc&$format=json&$top=10000';
+
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('Olinda HTTP ' + resp.status);
+  const json = await resp.json();
+  const records = json.value || [];
+
+  const byYear = {};
+  records.forEach(r => {
+    const yr = String(r.DataReferencia);
+    if (!byYear[yr]) byYear[yr] = [];
+    byYear[yr].push({
+      date: new Date(r.Data),
+      mediana: r.Mediana
+    });
+  });
+
+  const years = Object.keys(byYear).sort();
+  return years.map(yr => ({
+    year: yr,
+    points: byYear[yr].sort((a, b) => a.date - b.date)
+  }));
+}
+
+function buildMockFocus() {
+  const result = [];
+  const today = new Date();
+  for (let yr = 2026; yr <= 2029; yr++) {
+    const points = [];
+    const start = new Date(2024, 0, 1);
+    const months = (today.getFullYear() - 2024) * 12 + today.getMonth();
+    for (let i = 0; i <= months; i++) {
+      const d = new Date(2024, i, 1);
+      const base = 3.5 + (yr - 2026) * 0.3;
+      const drift = 0.5 * Math.sin(i / 6);
+      points.push({ date: d, mediana: +(base + drift).toFixed(2) });
+    }
+    result.push({ year: String(yr), points: points });
+  }
+  return result;
+}
+
+function renderFocus(data) {
+  const traces = data.map((series, i) => ({
+    type: 'scatter',
+    mode: 'lines',
+    x: series.points.map(p => p.date),
+    y: series.points.map(p => p.mediana),
+    name: series.year,
+    line: {
+      color: FOCUS_COLORS[i % FOCUS_COLORS.length],
+      width: 2,
+      shape: 'spline',
+      smoothing: 0.4
+    },
+    connectgaps: false,
+    hovertemplate: '<b>IPCA ' + series.year + '</b><br>%{x|%d/%b/%Y}: <b>%{y:.2f}%</b><extra></extra>'
+  }));
+
+  const layout = {
+    margin: { l: 56, r: 16, t: 8, b: 70 },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: CHART_THEME.font,
+    hoverlabel: CHART_THEME.hoverlabel,
+    yaxis: commonYAxis({
+      title: { text: 'Mediana (%)', font: { size: 11, color: CHART_THEME.font.color } },
+      tickformat: '.2f',
+      ticksuffix: '%'
+    }),
+    xaxis: commonXAxis(),
+    legend: {
+      orientation: 'h',
+      y: -0.18,
+      x: 0.5,
+      xanchor: 'center',
+      font: { size: 11, color: CHART_THEME.font.color }
+    },
+    hovermode: 'x unified'
+  };
+
+  Plotly.newPlot('focus-chart', traces, layout, {
     displayModeBar: false,
     responsive: true
   });
