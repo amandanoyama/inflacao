@@ -371,6 +371,7 @@
        ============================================================ -->
   <nav class="tabs" role="tablist">
     <button class="tab-button active" data-tab="inflacao" role="tab">Inflação (IPCA-15)</button>
+    <button class="tab-button" data-tab="ipca" role="tab">Inflação (IPCA)</button>
     <button class="tab-button" data-tab="trabalho" role="tab">Mercado de Trabalho</button>
     <button class="tab-button" data-tab="fiscal" role="tab">Fiscal</button>
     <button class="tab-button" data-tab="focus" role="tab">Focus</button>
@@ -408,6 +409,34 @@
     <footer class="footer">
       Fontes: (i) base ipca15 dessaz — núcleos e componentes estruturais em MM3M anualizado;
       (ii) IBGE — SIDRA, Tabela 7062 (IPCA-15 — variação mensal, peso mensal e variação acumulada em 12 meses por grupo).
+      Contribuição mensal = (Peso/100) × Variação mensal.
+    </footer>
+  </section>
+
+  <!-- Aba: Inflação (IPCA) -->
+  <section class="tab-panel" id="tab-ipca" role="tabpanel">
+    <p class="ibge-status" id="ipca-status">Carregando dados do SIDRA/IBGE…</p>
+
+    <div class="ibge-table-wrap">
+      <h2>IPCA — Variação, peso e contribuição mensal por grupo</h2>
+      <div class="chart-sub" id="ipca-table-ref">Referência: —</div>
+      <div class="ibge-table-scroll">
+        <table class="ibge-table">
+          <thead>
+            <tr>
+              <th>Grupo</th>
+              <th>Variação mensal (%)</th>
+              <th>Peso mensal (%)</th>
+              <th>Contribuição (p.p.)</th>
+            </tr>
+          </thead>
+          <tbody id="ipca-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <footer class="footer">
+      Fonte: IBGE — SIDRA, Tabela 7060 (IPCA — variação mensal, peso mensal e impacto mensal por grupo).
       Contribuição mensal = (Peso/100) × Variação mensal.
     </footer>
   </section>
@@ -739,12 +768,14 @@ if (document.fonts && document.fonts.ready) {
  * ============================================================ */
 const TAB_INITIALIZERS = {
   inflacao: () => initInflacaoTab(),
+  ipca:     () => initIPCATab(),
   trabalho: () => initTrabalhoTab(),
   fiscal:   () => initFiscalTab(),
   focus:    () => initFocusTab()
 };
 const TAB_RESIZERS = {
   inflacao: () => resizeInflacaoCharts(),
+  ipca:     () => {},
   trabalho: () => resizeTrabalhoCharts(),
   fiscal:   () => resizeFiscalCharts(),
   focus:    () => resizeFocusCharts()
@@ -1070,6 +1101,132 @@ function renderIBGE(data, isMock) {
     displayModeBar: false,
     responsive: true
   });
+}
+
+/* ============================================================
+ * Aba INFLAÇÃO (IPCA) — Tabela 7060 do SIDRA
+ *   V63: Variação mensal (%)
+ *   V66: Peso mensal (%)
+ *   Contribuição = (Peso/100) × Variação mensal
+ *   Grupos: mesma classificação c315 usada no IPCA-15.
+ * ============================================================ */
+const IPCA_GROUPS = [
+  { code: '7170', name: '1. Alimentação e bebidas',     color: '#DE7B6E' },
+  { code: '7445', name: '2. Habitação',                 color: '#6FA8DC' },
+  { code: '7486', name: '3. Artigos de residência',     color: '#9B8AC4' },
+  { code: '7558', name: '4. Vestuário',                 color: '#D9A656' },
+  { code: '7625', name: '5. Transportes',               color: '#4FB39F' },
+  { code: '7660', name: '6. Saúde e cuidados pessoais', color: '#C97898' },
+  { code: '7712', name: '7. Despesas pessoais',         color: '#B86A9C' },
+  { code: '7766', name: '8. Educação',                  color: '#9AAE65' },
+  { code: '7786', name: '9. Comunicação',               color: '#7E8AA0' }
+];
+const IPCA_GENERAL = { code: '7169', name: 'Índice geral' };
+
+function initIPCATab() { loadIPCA(); }
+
+async function loadIPCA() {
+  const statusEl = document.getElementById('ipca-status');
+  try {
+    const data = await fetchIPCA();
+    renderIPCATable(data);
+    statusEl.textContent = 'Fonte: SIDRA/IBGE, Tabela 7060 (IPCA) — ref. atual: ' + data.refLabel;
+  } catch (err) {
+    console.warn('Falha ao consultar SIDRA (IPCA 7060) — usando dados de demonstração.', err);
+    renderIPCATable(buildMockIPCA());
+    statusEl.textContent = '';
+    statusEl.style.display = 'none';
+  }
+}
+
+async function fetchIPCA() {
+  const codes = [IPCA_GENERAL.code, ...IPCA_GROUPS.map(g => g.code)].join(',');
+  const url = 'https://apisidra.ibge.gov.br/values/t/7060/n1/all/v/63,66/p/last%201/c315/' + codes + '?formato=json';
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const raw = await resp.json();
+  const records = raw.slice(1);
+
+  const groups = {};
+  let refLabel = '';
+  let generalVarMes = null;
+
+  records.forEach(r => {
+    const groupCode = r.D4C;
+    const varCode = r.D2C;
+    const rawVal = String(r.V);
+    const value = (rawVal === '-' || rawVal === '...' || rawVal === '') ? null : parseFloat(rawVal.replace(',', '.'));
+    refLabel = r.D3N || refLabel;
+
+    if (!groups[groupCode]) groups[groupCode] = {};
+    if (varCode === '63') groups[groupCode].varMes = value;
+    if (varCode === '66') groups[groupCode].peso = value;
+  });
+
+  const gen = groups[IPCA_GENERAL.code] || {};
+  const tableRows = IPCA_GROUPS.map(g => {
+    const item = groups[g.code] || {};
+    return {
+      code: g.code,
+      varMes: item.varMes != null ? item.varMes : null,
+      peso: item.peso != null ? item.peso : null
+    };
+  });
+
+  return {
+    refLabel: refLabel,
+    tableRows: tableRows,
+    generalVarMes: gen.varMes
+  };
+}
+
+function buildMockIPCA() {
+  const tableRows = IPCA_GROUPS.map((g, i) => ({
+    code: g.code,
+    varMes: +(0.2 + 0.15 * Math.sin(i)).toFixed(2),
+    peso: [21.5, 15.6, 3.8, 4.8, 20.9, 13.2, 10.9, 5.9, 3.4][i]
+  }));
+  return {
+    refLabel: 'demo',
+    tableRows: tableRows,
+    generalVarMes: +tableRows.reduce((acc, r) => acc + (r.peso / 100) * r.varMes, 0).toFixed(2)
+  };
+}
+
+function renderIPCATable(data) {
+  const tbody = document.getElementById('ipca-table-body');
+  tbody.innerHTML = '';
+
+  let sumContrib = 0;
+  IPCA_GROUPS.forEach((g, i) => {
+    const r = data.tableRows[i] || {};
+    const contrib = (r.peso != null && r.varMes != null) ? (r.peso / 100) * r.varMes : null;
+    if (contrib != null) sumContrib += contrib;
+  });
+
+  const trGen = document.createElement('tr');
+  trGen.className = 'row-general';
+  trGen.innerHTML =
+    '<td>' + IPCA_GENERAL.name + '</td>' +
+    '<td>' + fmt(data.generalVarMes, 2) + '</td>' +
+    '<td>100,00</td>' +
+    '<td>' + fmt(sumContrib, 3) + '</td>';
+  tbody.appendChild(trGen);
+
+  IPCA_GROUPS.forEach((g, i) => {
+    const r = data.tableRows[i] || {};
+    const contrib = (r.peso != null && r.varMes != null) ? (r.peso / 100) * r.varMes : null;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><span class="group-dot" style="background:' + g.color + '"></span>' + g.name + '</td>' +
+      '<td>' + fmt(r.varMes, 2) + '</td>' +
+      '<td>' + fmt(r.peso, 2) + '</td>' +
+      '<td>' + fmt(contrib, 3) + '</td>';
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('ipca-table-ref').textContent =
+    'Referência: ' + (data.refLabel || '—');
 }
 
 /* ============================================================
