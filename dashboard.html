@@ -459,11 +459,18 @@
         </div>
         <div class="plot plot-tall" id="focus-selic-chart"></div>
       </div>
+      <div class="chart-card full-width">
+        <div class="chart-header">
+          <h2>Expectativas de mercado — PIB anual (Mediana)</h2>
+          <div class="chart-sub">Evolução das projeções por ano de referência (%)</div>
+        </div>
+        <div class="plot plot-tall" id="focus-pib-chart"></div>
+      </div>
     </section>
 
     <footer class="footer">
       Fonte: Banco Central do Brasil — Sistema de Expectativas de Mercado (API Olinda).
-      Métrica: mediana das expectativas anuais do IPCA e da Selic, filtrada por ano de referência a partir de 2026.
+      Métrica: mediana das expectativas anuais do IPCA, Selic e PIB, filtrada por ano de referência a partir de 2026.
     </footer>
   </section>
 
@@ -1336,10 +1343,10 @@ function renderFiscal(seriesData) {
  * ============================================================ */
 const FOCUS_COLORS = ['#6FA8DC', '#9B8AC4', '#D9A656', '#DE7B6E', '#7E8AA0', '#4FB39F', '#C97898'];
 
-function initFocusTab() { loadFocus(); loadFocusSelic(); }
+function initFocusTab() { loadFocus(); loadFocusSelic(); loadFocusPIB(); }
 
 function resizeFocusCharts() {
-  ['focus-chart', 'focus-selic-chart'].forEach(id => {
+  ['focus-chart', 'focus-selic-chart', 'focus-pib-chart'].forEach(id => {
     const el = document.getElementById(id);
     if (el && el.data) Plotly.Plots.resize(el);
   });
@@ -1548,6 +1555,107 @@ function renderFocusSelic(data) {
   };
 
   Plotly.newPlot('focus-selic-chart', traces, layout, {
+    displayModeBar: false,
+    responsive: true
+  });
+}
+
+async function loadFocusPIB() {
+  try {
+    const data = await fetchFocusPIB();
+    renderFocusPIB(data);
+  } catch (err) {
+    console.warn('Falha ao consultar API Olinda/BCB (PIB) — usando dados de demonstração.', err);
+    renderFocusPIB(buildMockFocusPIB());
+  }
+}
+
+async function fetchFocusPIB() {
+  const url = 'https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/' +
+    "ExpectativasMercadoAnuais?$filter=Indicador%20eq%20'PIB%20Total'%20and%20DataReferencia%20ge%20'2026'" +
+    "%20and%20DataReferencia%20le%20'2028'" +
+    "%20and%20Data%20ge%20'2026-01-01'" +
+    '&$select=Data,DataReferencia,Mediana&$orderby=Data%20asc&$format=json&$top=10000';
+
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('Olinda PIB HTTP ' + resp.status);
+  const json = await resp.json();
+  const records = json.value || [];
+
+  const byYear = {};
+  records.forEach(r => {
+    const yr = String(r.DataReferencia);
+    if (!byYear[yr]) byYear[yr] = [];
+    byYear[yr].push({
+      date: new Date(r.Data),
+      mediana: r.Mediana
+    });
+  });
+
+  const years = Object.keys(byYear).sort();
+  return years.map(yr => ({
+    year: yr,
+    points: byYear[yr].sort((a, b) => a.date - b.date)
+  }));
+}
+
+function buildMockFocusPIB() {
+  const result = [];
+  const today = new Date();
+  for (let yr = 2026; yr <= 2028; yr++) {
+    const points = [];
+    const months = (today.getFullYear() - 2026) * 12 + today.getMonth();
+    for (let i = 0; i <= months; i++) {
+      const d = new Date(2026, i, 1);
+      const base = 2.0 + (yr - 2026) * 0.2;
+      const drift = 0.3 * Math.sin(i / 5);
+      points.push({ date: d, mediana: +(base + drift).toFixed(2) });
+    }
+    result.push({ year: String(yr), points: points });
+  }
+  return result;
+}
+
+function renderFocusPIB(data) {
+  const traces = data.map((series, i) => ({
+    type: 'scatter',
+    mode: 'lines',
+    x: series.points.map(p => p.date),
+    y: series.points.map(p => p.mediana),
+    name: series.year,
+    line: {
+      color: FOCUS_COLORS[i % FOCUS_COLORS.length],
+      width: 2,
+      shape: 'spline',
+      smoothing: 0.4
+    },
+    connectgaps: false,
+    hovertemplate: '<b>PIB ' + series.year + '</b><br>%{x|%d/%b/%Y}: <b>%{y:.2f}%</b><extra></extra>'
+  }));
+
+  const layout = {
+    margin: { l: 56, r: 16, t: 8, b: 70 },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: CHART_THEME.font,
+    hoverlabel: CHART_THEME.hoverlabel,
+    yaxis: commonYAxis({
+      title: { text: 'Mediana (%)', font: { size: 11, color: CHART_THEME.font.color } },
+      tickformat: '.2f',
+      ticksuffix: '%'
+    }),
+    xaxis: commonXAxis(),
+    legend: {
+      orientation: 'h',
+      y: -0.18,
+      x: 0.5,
+      xanchor: 'center',
+      font: { size: 11, color: CHART_THEME.font.color }
+    },
+    hovermode: 'x unified'
+  };
+
+  Plotly.newPlot('focus-pib-chart', traces, layout, {
     displayModeBar: false,
     responsive: true
   });
