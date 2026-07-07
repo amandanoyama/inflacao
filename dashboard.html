@@ -1354,6 +1354,7 @@ async function loadFocus() {
 async function fetchFocusExpectativas() {
   const url = 'https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/' +
     "ExpectativasMercadoAnuais?$filter=Indicador%20eq%20'IPCA'%20and%20DataReferencia%20ge%20'2026'" +
+    "%20and%20DataReferencia%20le%20'2028'" +
     "%20and%20Data%20ge%20'2026-01-01'" +
     '&$select=Data,DataReferencia,Mediana&$orderby=Data%20asc&$format=json&$top=10000';
 
@@ -1382,7 +1383,7 @@ async function fetchFocusExpectativas() {
 function buildMockFocus() {
   const result = [];
   const today = new Date();
-  for (let yr = 2026; yr <= 2029; yr++) {
+  for (let yr = 2026; yr <= 2028; yr++) {
     const points = [];
     const start = new Date(2024, 0, 1);
     const months = (today.getFullYear() - 2024) * 12 + today.getMonth();
