@@ -435,8 +435,11 @@
       </div>
     </div>
 
+    <section class="chart-grid" id="ipca-chart-grid"></section>
+
     <footer class="footer">
-      Fonte: IBGE — SIDRA, Tabela 7060 (IPCA — variação mensal, peso mensal e impacto mensal por grupo).
+      Fontes: (i) base ipca dessaz — núcleos e componentes estruturais em MM3M anualizado;
+      (ii) IBGE — SIDRA, Tabela 7060 (IPCA — variação mensal, peso mensal e impacto mensal por grupo).
       Contribuição mensal = (Peso/100) × Variação mensal.
     </footer>
   </section>
@@ -775,7 +778,7 @@ const TAB_INITIALIZERS = {
 };
 const TAB_RESIZERS = {
   inflacao: () => resizeInflacaoCharts(),
-  ipca:     () => {},
+  ipca:     () => resizeIPCACharts(),
   trabalho: () => resizeTrabalhoCharts(),
   fiscal:   () => resizeFiscalCharts(),
   focus:    () => resizeFocusCharts()
@@ -1123,7 +1126,102 @@ const IPCA_GROUPS = [
 ];
 const IPCA_GENERAL = { code: '7169', name: 'Índice geral' };
 
-function initIPCATab() { loadIPCA(); }
+/* ---- Séries dessaz do IPCA (mesmo design da aba IPCA-15) ---- */
+const IPCA_DESSAZ_SERIES = [
+  { id: 'ipca-nucleos', key: 'mediadosnucleos', title: 'Média dos 5 núcleos',      color: 'var(--c-nucleos)', plotColor: '#6FA8DC' },
+  { id: 'ipca-ex3',     key: 'EX3servicos',     title: 'EX3 Serviços',              color: 'var(--c-ex3)',     plotColor: '#9B8AC4' },
+  { id: 'ipca-serv',    key: 'servicos',         title: 'Serviços',                  color: '#4FB39F',          plotColor: '#4FB39F' },
+  { id: 'ipca-alim',    key: 'alimentacaonodomicilio', title: 'Alimentação no domicílio', color: 'var(--c-alim)', plotColor: '#D9A656' },
+  { id: 'ipca-ind',     key: 'industriais',      title: 'Produtos industriais',      color: 'var(--c-ind)',     plotColor: '#DE7B6E' },
+  { id: 'ipca-adm',     key: 'administrados',    title: 'Preços Administrados',      color: 'var(--c-adm)',     plotColor: '#7E8AA0' }
+];
+
+function resizeIPCACharts() {
+  IPCA_DESSAZ_SERIES.forEach(s => {
+    const el = document.getElementById('plot-' + s.id);
+    if (el && el.data) Plotly.Plots.resize(el);
+  });
+}
+
+function initIPCATab() {
+  loadIPCA();
+  loadIPCADessaz();
+}
+
+async function loadIPCADessaz() {
+  const CSV_URL = 'https://raw.githubusercontent.com/amandanoyama/inflacao/main/ipcadessaz.csv';
+  const LOCAL_CSV = 'ipcadessaz.csv';
+  const grid = document.getElementById('ipca-chart-grid');
+
+  let rows;
+  const urls = [CSV_URL, LOCAL_CSV, 'https://corsproxy.io/?' + encodeURIComponent(CSV_URL)];
+  for (const url of urls) {
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const text = await resp.text();
+      rows = parseCSV(text);
+      if (rows.length > 0) break;
+    } catch (err) {
+      console.warn('Tentativa CSV falhou (' + url.slice(0, 60) + '…):', err.message);
+    }
+  }
+  if (!rows || rows.length === 0) {
+    console.warn('CSV do IPCA dessaz indisponível em todas as fontes.');
+    const statusEl = document.getElementById('ipca-status');
+    if (statusEl) statusEl.textContent += ' · Gráficos dessaz indisponíveis (CSV não encontrado).';
+    return;
+  }
+
+  const START = new Date(Date.UTC(2013, 0, 1));
+  const filtered = rows.filter(r => r.date >= START).sort((a, b) => a.date - b.date);
+  const xDates = filtered.map(r => r.date);
+
+  IPCA_DESSAZ_SERIES.forEach(serie => {
+    const card = document.createElement('div');
+    card.className = 'chart-card';
+    card.innerHTML =
+      '<div class="chart-header">' +
+        '<h2>' + serie.title + '</h2>' +
+        '<div class="chart-sub">MM3M dessaz anualizado (%)</div>' +
+      '</div>' +
+      '<div class="plot" id="plot-' + serie.id + '"></div>';
+    grid.appendChild(card);
+
+    const yValues = filtered.map(r => r[serie.key]);
+    const customDates = xDates.map(d => formatMonthYearLong(d));
+
+    const trace = {
+      type: 'scatter',
+      mode: 'lines',
+      x: xDates,
+      y: yValues,
+      name: serie.title,
+      line: { color: serie.plotColor, width: 2, shape: 'spline', smoothing: 0.4 },
+      connectgaps: false,
+      customdata: customDates,
+      hovertemplate:
+        '<b>%{customdata}</b><br>' +
+        serie.title + ': <b>%{y:.2f}%</b><extra></extra>'
+    };
+
+    Plotly.newPlot('plot-' + serie.id, [trace], baseLayout(serie), plotlyConfig);
+  });
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',');
+  return lines.slice(1).map(line => {
+    const cols = line.split(',');
+    const obj = { date: new Date(cols[0] + 'T00:00:00Z') };
+    for (let i = 1; i < headers.length; i++) {
+      const v = cols[i];
+      obj[headers[i]] = (v === '' || v === 'null') ? null : parseFloat(v);
+    }
+    return obj;
+  }).filter(r => !isNaN(r.date.getTime()));
+}
 
 async function loadIPCA() {
   const statusEl = document.getElementById('ipca-status');
