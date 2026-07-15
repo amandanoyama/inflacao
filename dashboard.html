@@ -375,6 +375,7 @@
     <button class="tab-button" data-tab="trabalho" role="tab">Mercado de Trabalho</button>
     <button class="tab-button" data-tab="fiscal" role="tab">Fiscal</button>
     <button class="tab-button" data-tab="focus" role="tab">Focus</button>
+    <button class="tab-button" data-tab="eleicoes" role="tab">Eleições</button>
   </nav>
 
   <!-- Aba: Inflação (IPCA-15) -->
@@ -523,6 +524,23 @@
     <footer class="footer">
       Fonte: Banco Central do Brasil — SGS. Série 4513 (Dívida Líquida do Setor Público consolidado, % PIB)
       e série 13762 (Dívida Bruta do Governo Geral, % PIB — metodologia 2008). Período: jan/2010 ao último dado disponível.
+    </footer>
+  </section>
+
+  <!-- Aba: Eleições -->
+  <section class="tab-panel" id="tab-eleicoes" role="tabpanel">
+    <section class="chart-grid">
+      <div class="chart-card full-width">
+        <div class="chart-header">
+          <h2>Quaest: 2º turno (Lula contra Flávio)</h2>
+          <div class="chart-sub">Intenção de voto estimulada (pontos)</div>
+        </div>
+        <div class="plot plot-tall" id="eleicoes-chart"></div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      Fonte: Instituto Quaest — pesquisas de intenção de voto para o 2º turno (cenário Lula × Flávio Bolsonaro).
     </footer>
   </section>
 </div>
@@ -774,14 +792,16 @@ const TAB_INITIALIZERS = {
   ipca:     () => initIPCATab(),
   trabalho: () => initTrabalhoTab(),
   fiscal:   () => initFiscalTab(),
-  focus:    () => initFocusTab()
+  focus:    () => initFocusTab(),
+  eleicoes: () => initEleicoesTab()
 };
 const TAB_RESIZERS = {
   inflacao: () => resizeInflacaoCharts(),
   ipca:     () => resizeIPCACharts(),
   trabalho: () => resizeTrabalhoCharts(),
   fiscal:   () => resizeFiscalCharts(),
-  focus:    () => resizeFocusCharts()
+  focus:    () => resizeFocusCharts(),
+  eleicoes: () => resizeEleicoesCharts()
 };
 const tabState = { initialized: new Set() };
 
@@ -1211,7 +1231,7 @@ async function loadIPCADessaz() {
 
 function parseCSV(text) {
   const lines = text.trim().split('\n');
-  const headers = lines[0].split(',');
+  const headers = lines[0].split(',').map(h => h.trim());
   return lines.slice(1).map(line => {
     const cols = line.split(',');
     const obj = { date: new Date(cols[0] + 'T00:00:00Z') };
@@ -1914,6 +1934,92 @@ function renderFocusPIB(data) {
     displayModeBar: false,
     responsive: true
   });
+}
+
+/* ============================================================
+ * Aba ELEIÇÕES — Pesquisas de intenção de voto (Quaest)
+ *   Dados embutidos da planilha pesquisas.xlsx.
+ *   Gráfico de linhas: Lula (vermelho) × Flávio Bolsonaro (azul).
+ * ============================================================ */
+const ELEICOES_DATA = [
+  { date: '2025-08-01', lula: 48, flavio: 32 },
+  { date: '2025-12-01', lula: 46, flavio: 36 },
+  { date: '2026-01-01', lula: 45, flavio: 38 },
+  { date: '2026-02-01', lula: 43, flavio: 38 },
+  { date: '2026-03-01', lula: 41, flavio: 41 },
+  { date: '2026-04-01', lula: 40, flavio: 42 },
+  { date: '2026-05-01', lula: 42, flavio: 41 },
+  { date: '2026-06-01', lula: 44, flavio: 38 },
+  { date: '2026-07-01', lula: 45, flavio: 37 }
+];
+
+function initEleicoesTab() {
+  const xDates = ELEICOES_DATA.map(d => new Date(d.date));
+  const customLabels = xDates.map(d => {
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const aaaa = d.getUTCFullYear();
+    return mm + '/' + aaaa;
+  });
+
+  const traceLula = {
+    type: 'scatter',
+    mode: 'lines+markers',
+    x: xDates,
+    y: ELEICOES_DATA.map(d => d.lula),
+    name: 'Lula',
+    line: { color: '#D32F2F', width: 2.5 },
+    marker: { size: 7, color: '#D32F2F' },
+    connectgaps: false,
+    customdata: customLabels,
+    hovertemplate: '<b>%{customdata}</b><br>Lula: <b>%{y} pts</b><extra></extra>'
+  };
+
+  const traceFlavio = {
+    type: 'scatter',
+    mode: 'lines+markers',
+    x: xDates,
+    y: ELEICOES_DATA.map(d => d.flavio),
+    name: 'Flávio Bolsonaro',
+    line: { color: '#1565C0', width: 2.5 },
+    marker: { size: 7, color: '#1565C0' },
+    connectgaps: false,
+    customdata: customLabels,
+    hovertemplate: '<b>%{customdata}</b><br>Flávio Bolsonaro: <b>%{y} pts</b><extra></extra>'
+  };
+
+  const layout = {
+    margin: { l: 48, r: 16, t: 8, b: 70 },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: CHART_THEME.font,
+    hoverlabel: CHART_THEME.hoverlabel,
+    yaxis: commonYAxis({
+      title: { text: 'Pontos', font: { size: 11, color: CHART_THEME.font.color } },
+      tickformat: 'd'
+    }),
+    xaxis: Object.assign(commonXAxis(), {
+      tickformat: '%m/%Y',
+      dtick: 'M1'
+    }),
+    legend: {
+      orientation: 'h',
+      y: -0.18,
+      x: 0.5,
+      xanchor: 'center',
+      font: { size: 12, color: CHART_THEME.font.color }
+    },
+    hovermode: 'x unified'
+  };
+
+  Plotly.newPlot('eleicoes-chart', [traceLula, traceFlavio], layout, {
+    displayModeBar: false,
+    responsive: true
+  });
+}
+
+function resizeEleicoesCharts() {
+  const el = document.getElementById('eleicoes-chart');
+  if (el && el.data) Plotly.Plots.resize(el);
 }
 </script>
 </body>
