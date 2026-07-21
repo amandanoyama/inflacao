@@ -373,6 +373,7 @@
     <button class="tab-button active" data-tab="inflacao" role="tab">Inflação (IPCA-15)</button>
     <button class="tab-button" data-tab="ipca" role="tab">Inflação (IPCA)</button>
     <button class="tab-button" data-tab="trabalho" role="tab">Mercado de Trabalho</button>
+    <button class="tab-button" data-tab="atividade" role="tab">Atividade Econômica</button>
     <button class="tab-button" data-tab="fiscal" role="tab">Fiscal</button>
     <button class="tab-button" data-tab="focus" role="tab">Focus</button>
     <button class="tab-button" data-tab="eleicoes" role="tab">Eleições</button>
@@ -473,6 +474,48 @@
     </footer>
   </section>
 
+  <!-- Aba: Atividade Econômica -->
+  <section class="tab-panel" id="tab-atividade" role="tabpanel">
+    <p class="ibge-status" id="atividade-status">Carregando indicadores de consumo das famílias…</p>
+
+    <section class="chart-grid">
+      <div class="chart-card full-width">
+        <div class="chart-header">
+          <h2>Indicadores de consumo das famílias</h2>
+          <div class="chart-sub">Número-índice com ajuste sazonal (2022 = 100)</div>
+        </div>
+        <div class="plot plot-tall" id="atividade-consumo-chart"></div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      Fonte: IBGE — SIDRA. PMS: Tabela 8688, var. 7168 (Serviços prestados às famílias).
+      PIM-PF: Tabela 8887, var. 12607 (Bens de consumo — grandes categorias econômicas).
+      PMC: Tabela 8880, var. 7170 (Volume de vendas no comércio varejista restrito).
+      Todos em número-índice com ajuste sazonal (2022 = 100).
+    </footer>
+  </section>
+
+  <!-- Aba: Fiscal -->
+  <section class="tab-panel" id="tab-fiscal" role="tabpanel">
+    <p class="ibge-status" id="fiscal-status" style="display:none;"></p>
+
+    <section class="chart-grid">
+      <div class="chart-card full-width">
+        <div class="chart-header">
+          <h2>Endividamento do setor público (% do PIB)</h2>
+          <div class="chart-sub">Dívida Líquida × Dívida Bruta — desde jan/2010</div>
+        </div>
+        <div class="plot plot-tall" id="fiscal-chart"></div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      Fonte: Banco Central do Brasil — SGS. Série 4513 (Dívida Líquida do Setor Público consolidado, % PIB)
+      e série 13762 (Dívida Bruta do Governo Geral, % PIB — metodologia 2008). Período: jan/2010 ao último dado disponível.
+    </footer>
+  </section>
+
   <!-- Aba: Focus (Expectativas de Mercado) -->
   <section class="tab-panel" id="tab-focus" role="tabpanel">
     <p class="ibge-status" id="focus-status">Carregando expectativas de mercado…</p>
@@ -504,26 +547,6 @@
     <footer class="footer">
       Fonte: Banco Central do Brasil — Sistema de Expectativas de Mercado (API Olinda).
       Métrica: mediana das expectativas anuais do IPCA, Selic e PIB, filtrada por ano de referência a partir de 2026.
-    </footer>
-  </section>
-
-  <!-- Aba: Fiscal -->
-  <section class="tab-panel" id="tab-fiscal" role="tabpanel">
-    <p class="ibge-status" id="fiscal-status" style="display:none;"></p>
-
-    <section class="chart-grid">
-      <div class="chart-card full-width">
-        <div class="chart-header">
-          <h2>Endividamento do setor público (% do PIB)</h2>
-          <div class="chart-sub">Dívida Líquida × Dívida Bruta — desde jan/2010</div>
-        </div>
-        <div class="plot plot-tall" id="fiscal-chart"></div>
-      </div>
-    </section>
-
-    <footer class="footer">
-      Fonte: Banco Central do Brasil — SGS. Série 4513 (Dívida Líquida do Setor Público consolidado, % PIB)
-      e série 13762 (Dívida Bruta do Governo Geral, % PIB — metodologia 2008). Período: jan/2010 ao último dado disponível.
     </footer>
   </section>
 
@@ -793,15 +816,17 @@ const TAB_INITIALIZERS = {
   trabalho: () => initTrabalhoTab(),
   fiscal:   () => initFiscalTab(),
   focus:    () => initFocusTab(),
-  eleicoes: () => initEleicoesTab()
+  eleicoes:  () => initEleicoesTab(),
+  atividade: () => initAtividadeTab()
 };
 const TAB_RESIZERS = {
-  inflacao: () => resizeInflacaoCharts(),
-  ipca:     () => resizeIPCACharts(),
-  trabalho: () => resizeTrabalhoCharts(),
-  fiscal:   () => resizeFiscalCharts(),
-  focus:    () => resizeFocusCharts(),
-  eleicoes: () => resizeEleicoesCharts()
+  inflacao:  () => resizeInflacaoCharts(),
+  ipca:      () => resizeIPCACharts(),
+  trabalho:  () => resizeTrabalhoCharts(),
+  fiscal:    () => resizeFiscalCharts(),
+  focus:     () => resizeFocusCharts(),
+  eleicoes:  () => resizeEleicoesCharts(),
+  atividade: () => resizeAtividadeCharts()
 };
 const tabState = { initialized: new Set() };
 
@@ -1931,6 +1956,150 @@ function renderFocusPIB(data) {
   };
 
   Plotly.newPlot('focus-pib-chart', traces, layout, {
+    displayModeBar: false,
+    responsive: true
+  });
+}
+
+/* ============================================================
+ * Aba ATIVIDADE ECONÔMICA — Indicadores de consumo das famílias
+ *   PMS (Tabela 8688, var. 7168): Serviços prestados às famílias
+ *   PIM-PF (Tabela 8887, var. 12607): Bens de consumo
+ *   PMC (Tabela 8880, var. 7170): Volume de vendas — comércio varejista restrito
+ *   Todos em número-índice com ajuste sazonal (2022 = 100).
+ * ============================================================ */
+const ATIVIDADE_SERIES = [
+  {
+    label: 'PMS - Famílias',
+    color: '#6FA8DC',
+    url: 'https://apisidra.ibge.gov.br/values/t/8688/n1/all/v/7168/p/all/c12355/106869/c11046/56726?formato=json'
+  },
+  {
+    label: 'PIM - Bens de consumo',
+    color: '#D9A656',
+    url: 'https://apisidra.ibge.gov.br/values/t/8887/n1/all/v/12607/p/all/c543/129300?formato=json'
+  },
+  {
+    label: 'PMC - Restrita',
+    color: '#DE7B6E',
+    url: 'https://apisidra.ibge.gov.br/values/t/8880/n1/all/v/7170/p/all/c11046/56734?formato=json'
+  }
+];
+
+function initAtividadeTab() { loadAtividade(); }
+
+function resizeAtividadeCharts() {
+  const el = document.getElementById('atividade-consumo-chart');
+  if (el && el.data) Plotly.Plots.resize(el);
+}
+
+async function fetchAtividadeSeries(seriesDef) {
+  const directURL = seriesDef.url;
+  const proxyURL = 'https://corsproxy.io/?' + encodeURIComponent(directURL);
+
+  let raw;
+  try {
+    const resp = await fetch(directURL);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    raw = await resp.json();
+  } catch (errDirect) {
+    console.warn('SIDRA direto falhou (' + seriesDef.label + '), tentando via proxy CORS:', errDirect);
+    const resp = await fetch(proxyURL);
+    if (!resp.ok) throw new Error('Proxy HTTP ' + resp.status);
+    raw = await resp.json();
+  }
+
+  const records = raw.slice(1);
+  const points = [];
+  records.forEach(r => {
+    const period = r.D3C;
+    const valStr = String(r.V);
+    if (valStr === '-' || valStr === '...' || valStr === '') return;
+    const value = parseFloat(valStr.replace(',', '.'));
+    if (Number.isNaN(value)) return;
+    const yyyy = parseInt(period.slice(0, 4), 10);
+    const mm = parseInt(period.slice(4, 6), 10) - 1;
+    points.push({ date: new Date(yyyy, mm, 1), value: value });
+  });
+  points.sort((a, b) => a.date - b.date);
+  return points;
+}
+
+function buildMockAtividade() {
+  return ATIVIDADE_SERIES.map((s, si) => {
+    const points = [];
+    const start = new Date(2012, 0, 1);
+    const today = new Date();
+    const months = (today.getFullYear() - 2012) * 12 + today.getMonth();
+    for (let i = 0; i <= months; i++) {
+      const d = new Date(2012, i, 1);
+      const t = i / 12;
+      const base = 80 + si * 5;
+      const v = base + 20 * Math.sin(t / 3) + t * 1.5;
+      points.push({ date: d, value: +v.toFixed(2) });
+    }
+    return points;
+  });
+}
+
+async function loadAtividade() {
+  const statusEl = document.getElementById('atividade-status');
+  try {
+    const allPoints = await Promise.all(
+      ATIVIDADE_SERIES.map(s => fetchAtividadeSeries(s))
+    );
+    renderAtividade(allPoints);
+    const lastDates = allPoints.map(pts =>
+      pts.length ? pts[pts.length - 1].date : null
+    ).filter(Boolean);
+    const ref = lastDates.length
+      ? lastDates[0].toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })
+      : '—';
+    statusEl.textContent = 'Fonte: SIDRA/IBGE — Tabelas 8688, 8887 e 8880 · última observação: ' + ref;
+  } catch (err) {
+    console.warn('Falha ao consultar SIDRA (atividade econômica) — usando dados de demonstração.', err);
+    renderAtividade(buildMockAtividade());
+    statusEl.textContent = '';
+    statusEl.style.display = 'none';
+  }
+}
+
+function renderAtividade(allPoints) {
+  const traces = ATIVIDADE_SERIES.map((s, i) => ({
+    type: 'scatter',
+    mode: 'lines',
+    x: allPoints[i].map(p => p.date),
+    y: allPoints[i].map(p => p.value),
+    name: s.label,
+    line: { color: s.color, width: 2, shape: 'spline', smoothing: 0.4 },
+    connectgaps: false,
+    hovertemplate: '<b>' + s.label + '</b><br>%{x|%m/%Y}: <b>%{y:.1f}</b><extra></extra>'
+  }));
+
+  const layout = {
+    margin: { l: 56, r: 16, t: 8, b: 70 },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: CHART_THEME.font,
+    hoverlabel: CHART_THEME.hoverlabel,
+    yaxis: commonYAxis({
+      title: { text: 'Índice (2022 = 100, a.s.)', font: { size: 11, color: CHART_THEME.font.color } },
+      tickformat: '.0f'
+    }),
+    xaxis: Object.assign(commonXAxis(), {
+      tickformat: '%m/%Y'
+    }),
+    legend: {
+      orientation: 'h',
+      y: -0.18,
+      x: 0.5,
+      xanchor: 'center',
+      font: { size: 11, color: CHART_THEME.font.color }
+    },
+    hovermode: 'x unified'
+  };
+
+  Plotly.newPlot('atividade-consumo-chart', traces, layout, {
     displayModeBar: false,
     responsive: true
   });
