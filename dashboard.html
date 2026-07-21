@@ -481,6 +481,13 @@
     <section class="chart-grid">
       <div class="chart-card full-width">
         <div class="chart-header">
+          <h2>PIB - crescimento QoQ (%)</h2>
+          <div class="chart-sub">Taxa trimestre contra trimestre imediatamente anterior</div>
+        </div>
+        <div class="plot plot-tall" id="atividade-pib-chart"></div>
+      </div>
+      <div class="chart-card full-width">
+        <div class="chart-header">
           <h2>Indicadores de consumo das famílias</h2>
           <div class="chart-sub">Número-índice com ajuste sazonal (2022 = 100)</div>
         </div>
@@ -489,7 +496,8 @@
     </section>
 
     <footer class="footer">
-      Fonte: IBGE — SIDRA. PMS: Tabela 8688, var. 7168 (Serviços prestados às famílias).
+      Fonte: IBGE — SIDRA. PIB: Tabela 5932, var. 6564 (Taxa trimestre contra trimestre imediatamente anterior, PIB a preços de mercado).
+      PMS: Tabela 8688, var. 7168 (Serviços prestados às famílias).
       PIM-PF: Tabela 8887, var. 12607 (Bens de consumo — grandes categorias econômicas).
       PMC: Tabela 8880, var. 7170 (Volume de vendas no comércio varejista restrito).
       Todos em número-índice com ajuste sazonal (2022 = 100).
@@ -1986,11 +1994,13 @@ const ATIVIDADE_SERIES = [
   }
 ];
 
-function initAtividadeTab() { loadAtividade(); }
+function initAtividadeTab() { loadAtividade(); loadPIBQoQ(); }
 
 function resizeAtividadeCharts() {
-  const el = document.getElementById('atividade-consumo-chart');
-  if (el && el.data) Plotly.Plots.resize(el);
+  ['atividade-consumo-chart', 'atividade-pib-chart'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.data) Plotly.Plots.resize(el);
+  });
 }
 
 async function fetchAtividadeSeries(seriesDef) {
@@ -2065,6 +2075,8 @@ async function loadAtividade() {
 }
 
 function renderAtividade(allPoints) {
+  const ATIVIDADE_START = new Date(2011, 1, 1);
+  allPoints = allPoints.map(pts => pts.filter(p => p.date >= ATIVIDADE_START));
   const traces = ATIVIDADE_SERIES.map((s, i) => ({
     type: 'scatter',
     mode: 'lines',
@@ -2100,6 +2112,125 @@ function renderAtividade(allPoints) {
   };
 
   Plotly.newPlot('atividade-consumo-chart', traces, layout, {
+    displayModeBar: false,
+    responsive: true
+  });
+}
+
+/* ============================================================
+ * PIB — Crescimento QoQ (Grouped Bar Chart)
+ *   Tabela 5932, var. 6564 = Taxa trimestre contra trimestre imediatamente anterior (%)
+ *   Classificação c11255/90707 = PIB a preços de mercado
+ *   Últimos 4 anos completos.
+ * ============================================================ */
+const PIB_QOQ_COLORS = ['#6FA8DC', '#9B8AC4', '#D9A656', '#DE7B6E'];
+const TRIMESTRE_LABELS = ['I', 'II', 'III', 'IV'];
+
+async function loadPIBQoQ() {
+  try {
+    const points = await fetchPIBQoQ();
+    renderPIBQoQ(points);
+  } catch (err) {
+    console.warn('Falha ao consultar SIDRA (PIB QoQ) — usando dados de demonstração.', err);
+    renderPIBQoQ(buildMockPIBQoQ());
+  }
+}
+
+async function fetchPIBQoQ() {
+  const directURL = 'https://apisidra.ibge.gov.br/values/t/5932/n1/all/v/6564/p/all/c11255/90707?formato=json';
+  const proxyURL = 'https://corsproxy.io/?' + encodeURIComponent(directURL);
+
+  let raw;
+  try {
+    const resp = await fetch(directURL);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    raw = await resp.json();
+  } catch (errDirect) {
+    console.warn('SIDRA direto falhou (PIB QoQ), tentando via proxy CORS:', errDirect);
+    const resp = await fetch(proxyURL);
+    if (!resp.ok) throw new Error('Proxy HTTP ' + resp.status);
+    raw = await resp.json();
+  }
+
+  const records = raw.slice(1);
+  const points = [];
+  records.forEach(r => {
+    const period = r.D3C;
+    const valStr = String(r.V);
+    if (valStr === '-' || valStr === '...' || valStr === '') return;
+    const value = parseFloat(valStr.replace(',', '.'));
+    if (Number.isNaN(value)) return;
+    const yyyy = parseInt(period.slice(0, 4), 10);
+    const qq = parseInt(period.slice(4, 6), 10);
+    points.push({ year: yyyy, quarter: qq, value: value });
+  });
+  return points;
+}
+
+function buildMockPIBQoQ() {
+  const points = [];
+  const currentYear = new Date().getFullYear();
+  for (let y = currentYear - 4; y <= currentYear; y++) {
+    for (let q = 1; q <= 4; q++) {
+      points.push({ year: y, quarter: q, value: +(1.5 + 2 * Math.sin((y - 2020) + q)).toFixed(1) });
+    }
+  }
+  return points;
+}
+
+function renderPIBQoQ(points) {
+  const allYears = [...new Set(points.map(p => p.year))].sort();
+  const lastYear = allYears[allYears.length - 1];
+  const completeYears = allYears.filter(y =>
+    y === lastYear || [1, 2, 3, 4].every(q => points.some(p => p.year === y && p.quarter === q))
+  );
+  const years = completeYears.slice(-4);
+
+  const traces = years.map((yr, i) => {
+    const yVals = TRIMESTRE_LABELS.map((_, qi) => {
+      const pt = points.find(p => p.year === yr && p.quarter === qi + 1);
+      return pt ? pt.value : null;
+    });
+    return {
+      type: 'bar',
+      x: TRIMESTRE_LABELS,
+      y: yVals,
+      name: String(yr),
+      marker: { color: PIB_QOQ_COLORS[i % PIB_QOQ_COLORS.length] },
+      hovertemplate: '<b>' + yr + ' — %{x}º tri</b><br>Crescimento: <b>%{y:.1f}%</b><extra></extra>'
+    };
+  });
+
+  const layout = {
+    margin: { l: 56, r: 16, t: 8, b: 70 },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: CHART_THEME.font,
+    hoverlabel: CHART_THEME.hoverlabel,
+    barmode: 'group',
+    xaxis: {
+      type: 'category',
+      tickfont: CHART_THEME.tickFont,
+      linecolor: CHART_THEME.axisLine
+    },
+    yaxis: commonYAxis({
+      title: { text: 'Crescimento QoQ (%) sa', font: { size: 11, color: CHART_THEME.font.color } },
+      tickformat: '.1f',
+      ticksuffix: '%',
+      dtick: 0.5,
+      range: [0, 2.5]
+    }),
+    legend: {
+      orientation: 'h',
+      y: -0.18,
+      x: 0.5,
+      xanchor: 'center',
+      font: { size: 11, color: CHART_THEME.font.color }
+    },
+    hovermode: 'closest'
+  };
+
+  Plotly.newPlot('atividade-pib-chart', traces, layout, {
     displayModeBar: false,
     responsive: true
   });
